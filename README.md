@@ -68,7 +68,9 @@ There are 3 ways to define targets:
 		- Take view image and drag with the right mouse button to centre the neighbouring hole (make sure stage didn’t move).
 		- Run the *ReportSpecimenShift* command in SerialEM and take the values output in the log window.
 	- Run the script from the script window.
+
 Once target selection is completed all targets are saved in the navigator and a *rootname_tgts.txt* file is created. Target 1 is set to *Acquire* and the name of the *rootname_tgts.txt* file is saved in its *Note* entry. 
+
 **Caution:** Only target 1 of each PACE-tomo acquisition area should be set to *Acquire*!
 
 Before starting the PACE-tomo collection, please check the settings inside the *PACEtomo* script. Most settings are self-explanatory, but here is a more detailed description for some of them:

@@ -34,7 +34,9 @@ To use PACE-tomo just copy the content of *PACEtomo.py* and *PACEtomo_selectTarg
 ### Usage
 Setup SerialEM low dose mode like you would for conventional tilt series acquisition. Make sure to set the appropriate [tilt axis offset](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_tasks.htm#hid_tasks_settiltaxisoffset) (more details below). 
 
-Before you run a PACE-tomo acquisition, you must define the targets using the *PACEtomo_selectTargets* script. To avoid problems with the SerialEM working directory, please choose the folder in which you save your frames before running the *selectTargets* script.
+Before you run a PACE-tomo acquisition, you must define the targets using the *PACEtomo_selectTargets* script. 
+
+**Caution:** To avoid problems with the SerialEM working directory, please choose the folder in which you save your frames before running the *selectTargets* script.
 
 There are 3 ways to define targets:
 
@@ -67,7 +69,7 @@ There are 3 ways to define targets:
 		- Run the *ReportSpecimenShift* command in SerialEM and take the values output in the log window.
 	- Run the script from the script window.
 Once target selection is completed all targets are saved in the navigator and a *rootname_tgts.txt* file is created. Target 1 is set to *Acquire* and the name of the *rootname_tgts.txt* file is saved in its *Note* entry. 
-Caution: Only target 1 of each PACE-tomo acquisition area should be set to *Acquire*!
+**Caution:** Only target 1 of each PACE-tomo acquisition area should be set to *Acquire*!
 
 Before starting the PACE-tomo collection, please check the settings inside the *PACEtomo* script. Most settings are self-explanatory, but here is a more detailed description for some of them:
 

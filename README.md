@@ -29,7 +29,7 @@ To check if SerialEM has access to the modules, run this script inside a SerialE
 	from scipy import optimize
 	sem.OKBox("All necessary modules are installed!")
 
-To use PACE-tomo just copy the content of PACEtomo.py and PACEtomo_selectTargets.py in an empty SerialEM script slot each.
+To use PACE-tomo just copy the content of *PACEtomo.py* and *PACEtomo_selectTargets.py* in an empty SerialEM script slot each.
 
 ### Usage
 Setup SerialEM low dose mode like you would for conventional tilt series acquisition. Make sure to set the appropriate [tilt axis offset](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_tasks.htm#hid_tasks_settiltaxisoffset) (more details below). 

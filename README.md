@@ -36,7 +36,7 @@ Setup SerialEM low dose mode like you would for conventional tilt series acquisi
 
 Before you run a PACE-tomo acquisition, you must define the targets using the *PACEtomo_selectTargets* script. 
 
-**Caution:** To avoid problems with the SerialEM working directory, please choose the folder in which you save your frames before running the *selectTargets* script.
+**Caution:** To avoid problems with the SerialEM working directory, please choose the folder in which you save your frames during acquisition before running the *selectTargets* script.
 
 There are 3 ways to define targets:
 

@@ -48,7 +48,7 @@ There are 3 ways to define targets:
 	- Run the script from the script window.
 	- Choose the folder where all files related to PACE-tomo including the final tilt series are saved. This should be the same folder for all PACE-tomo acquisition areas if you plan to run them in batch via *Acquire at items*!
 	- Choose a rootname for the current acquisition area. All files related with this acquisition area will be named accordingly.
-	- The script will guide you to through the following process: <img src="selectTargets_small.png" alt="Target selection process" width="600" />
+	- The script will guide you to through the following process: <img src="selectTargets_small.png" alt="Target selection process" />
  
 2. Selecting targets by specifying relative image shifts in specimen coordinates.
 	- The overall process is like 1., but instead of dragging to centre a target, you supply shifts in µm for X and Y that are applied from the current position to reach the next target. This is useful for (semi-)ordered patterns of targets.

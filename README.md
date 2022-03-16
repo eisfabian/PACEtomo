@@ -48,7 +48,7 @@ There are 3 ways to define targets:
 	- Choose a rootname for the current acquisition area. All files related with this acquisition area will be named accordingly.
 	- The script will guide you to through the following process: <img src="selectTargets_small.png" alt="Target selection process" width="600" />
  
-2. Selecting targets by specifying relative specimen shifts.
+2. Selecting targets by specifying relative image shifts in specimen coordinates.
 	- The overall process is like 1., but instead of dragging to centre a target, you supply shifts in µm for X and Y that are applied from the current position to reach the next target. This is useful for (semi-)ordered patterns of targets.
 	- Set only *targetByShift* to *True*. Set all other settings to *False*.
 	- Move the stage to your first target (tracking target).

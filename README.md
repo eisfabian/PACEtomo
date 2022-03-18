@@ -5,7 +5,7 @@ Please refer to the publication for more details.
 ### Citation
 
 
-### Requirements
+## Requirements
 PACE-tomo does not require the installation of any stand-alone software. However, it does require SerialEM 4.0 or higher capable of running Python scripts.
 
 You can run the following lines of code in a SerialEM script window to test if Python is configured correctly:
@@ -31,8 +31,10 @@ To check if SerialEM has access to the modules, run this script inside a SerialE
 
 To use PACE-tomo just copy the content of *PACEtomo.py* and *PACEtomo_selectTargets.py* in an empty SerialEM script slot each.
 
-### Usage
-Setup SerialEM low dose mode like you would for conventional tilt series acquisition. Make sure to set the appropriate [tilt axis offset](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_tasks.htm#hid_tasks_settiltaxisoffset) (more details below). It is recommended to do a [coma-free alignment](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_focus.htm#hid_focus_coma_by_ctf) and a [coma vs image shift calibration](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_calibration.htm#hid_focustuning_comavs) to minimize beam tilt for large image shifts (you might need a carbon film to get nice power spectra for CTF fitting). However, in most cases beam tilt will not be resolution limiting.
+## Usage
+Setup SerialEM low dose mode like you would for conventional tilt series acquisition. Make sure to set the appropriate [tilt axis offset](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_tasks.htm#hid_tasks_settiltaxisoffset) (more details below). It is recommended to do a [coma-free alignment](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_focus.htm#hid_focus_coma_by_ctf) and a [coma vs image shift calibration](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_calibration.htm#hid_focustuning_comavs) to minimise beam tilt for large image shifts (you might need a carbon film to get nice power spectra for CTF fitting). However, in most cases beam tilt will not be resolution limiting.
+
+### Target selection
 
 Before you run a PACE-tomo acquisition, you must define the targets using the *PACEtomo_selectTargets* script. 
 
@@ -40,7 +42,7 @@ Before you run a PACE-tomo acquisition, you must define the targets using the *P
 
 There are 3 ways to define targets:
 
-1. Selecting targets by dragging the image and centring features of interest manually.
+1. **Selecting targets by dragging the image and centring features of interest manually.**
 	- Inside the script, choose a *delaytime* for dragging the image before taking the next image.
 	- Set all other settings to *False*.
 	- Move the stage to your first target (tracking target).
@@ -50,14 +52,14 @@ There are 3 ways to define targets:
 	- Choose a rootname for the current acquisition area. All files related with this acquisition area will be named accordingly.
 	- The script will guide you through the following process: <img src="selectTargets_small.png" alt="Target selection process" />
  
-2. Selecting targets by specifying relative image shifts in specimen coordinates.
+2. **Selecting targets by specifying relative image shifts in specimen coordinates.**
 	- The overall process is like 1., but instead of dragging to centre a target, you supply shifts in µm for X and Y that are applied from the current position to reach the next target. This is useful for (semi-)ordered patterns of targets.
 	- Set only *targetByShift* to *True*. Set all other settings to *False*.
 	- Move the stage to your first target (tracking target).
 	- Run the script from the script window.
 	- The script will guide you through the process.
 
-3. Selecting a target pattern that can be applied to arbitrary stage positions.
+3. **Selecting a target pattern that can be applied to arbitrary stage positions.**
 	- A target pattern is useful for the collection on regular holey support films and can be easily transferred to other stage positions.
 	- Set *targetPattern* to *True*.
 	- If you have a hole reference saved in buffer P and want to refine the manually entered grid vectors (*vecA* and *vecB*) according to hole positions, set *alignToP* to *True*.
@@ -72,6 +74,8 @@ There are 3 ways to define targets:
 Once target selection is completed all targets are saved in the navigator and a *rootname_tgts.txt* file is created. Target 1 is set to *Acquire* and the name of the *rootname_tgts.txt* file is saved in its *Note* entry. 
 
 **Caution:** Only target 1 of each PACE-tomo acquisition area should be set to *Acquire*!
+
+### Acquisition
 
 Before starting the PACE-tomo collection, please check the settings inside the *PACEtomo* script. Most settings are self-explanatory, but here is a more detailed description for some of them:
 

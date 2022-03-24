@@ -5,6 +5,10 @@ Please refer to the publication for more details.
 ### Citation
 
 
+## Hardware
+
+PACE-tomo has been tested on a JEOL JEM-F200 and a Thermo Fisher Scientific Krios G3i and G4 transmission electron microscope using the dedicated computer for the Gatan K2 or K3 direct electron detector. The open-source microscope control software [SerialEM](https://bio3d.colorado.edu/SerialEM/) should be installed and calibrated.
+
 ## Requirements
 PACE-tomo does not require the installation of any stand-alone software. However, it does require SerialEM 4.0 or higher capable of running Python scripts.
 
@@ -80,20 +84,26 @@ Once target selection is completed all targets are saved in the navigator and a 
 Before starting the PACE-tomo collection, please check the settings inside the *PACEtomo* script. Most settings are self-explanatory, but here is a more detailed description for some of them:
 
 - If a defocus range is given, PACE-tomo will use different target defoci (separated by *stepDefocus*) for each target. If you want to use the same target defocus, keep *minDefocus* and *maxDefocus* the same.
-- By setting *addAF* to *True* you can add additional autofocus routines on target 1 at every branch switch of the dose-symmetric tilt series. This did not yield major improvements in the final defocus spread during testing.
 - If your tilt axis offset is not appropriately set, there will be a pseudo-linear defocus slope throughout your tilt series. You can run PACE-tomo on a carbon film, estimate the defocus by CTF fitting and plot the change per degree. Set this value as *focusSlope* to compensate in subsequent acquisitions. Alternatively, refine the tilt axis offset to minimise the slope. In our case, when using SerialEM’s fine eucentricity routine to obtain the tilt axis offset, a significant focus slope remained.
 - You can set delays to be applied after adjusting the image shift and after tilting. On modern state-of-the-art microscopes and resolutions typical of subtomogram averaging, such delays should not be necessary.
 - The *pretilt* of the lamella (if applicable) is determined during the focused ion beam milling process and is usually between 8-12 degrees. The sign is important and depends on the orientation in which the grid was loaded into the microscope. (It is recommended to load lamella containing grids consistently in the same orientation.) 
 - Lamellae should be oriented with the milling direction perpendicular to the tilt axis during sample loading. In this case the *rotation* should be 0 degrees. If there is a residual rotation you can estimate and enter it for the initial estimation of the eucentric offset. Again, the sign depends on the orientation of the lamella in the microscope.
 - If you want to use PACE-tomo on a regular target pattern (e.g., holey support film), set *tgtPattern* to *True*. Additionally, set *alignToP* to *True* if you saved a hole template to buffer P to use for target alignment.
 - *beamTiltComp* should be set to *True* if you did the [coma vs image shift calibration](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_calibration.htm#hid_focustuning_comavs).
+- By setting *addAF* to *True* you can add additional autofocus routines on target 1 at every branch switch of the dose-symmetric tilt series. This did not yield major improvements in the final defocus spread during testing.
+- *previewAli* can be set to *True* if you want to align every target to its saved Preview image. This can be necessary for small fields of view, when it is important to centre your feature of choice. It can also be useful when transferring a “targetPattern” to a different stage position, where the holey support film might have slightly different grid vectors. In this case you should also have *alignToP* set to *True*.
+- SerialEM has a hard limit on applying image shifts, which is 15 microns by default. *imageShiftLimit* will overwrite this SerialEM property.
 - The number of *dataPoints* used for the calculation of the eucentric offset of each target was kept at 4 throughout all experiments. Changes could be beneficial to performance.
 - The *alignLimit* should keep the cross-correlation alignment in check in cases of low contrast. On good stages the alignment error should never be worse than 0.5 µm.
 - *ignoreFirstNegShift* improves the alignment of the first tilt images from the negative branch and should generally be set to *True*.
 - *slowTilt* should only be set to *True* if you need additional tilt backlash corrections for the positive tilt branch, which should not be necessary for modern stages.
-- *previewAli* can be set to *True* if you want to align every target to its saved Preview image. This can be necessary for small fields of view, when it is important to centre your feature of choice. It can also be useful when transferring a “targetPattern” to a different stage position, where the holey support film might have slightly different grid vectors. In this case you should also have *alignToP* set to *True*.
 
 You can run the PACE-tomo acquisition script either by selecting the entry of target 1 in the Navigator and pressing *Run* in the script window or you can run it in batch via the *Acquire at Items...* dialogue. In case you want to run PACE-tomo on a regular grid *targetPattern*, you can copy the *Note* entry from target 1 it was defined on to any other point in the Navigator, allowing for batch PACE-tomo acquisition.
 
 ### Output
 All files are created in the folder you specified during target selection. Target images have the suffix *tgt_xxx* and collected tilt series have been saved with the suffix *ts_xxx* and their accompoanying *.mdoc* file.
+
+### Troubleshooting
+- The *rootname_tgts.txt* was not found: Run the *PACEtomo_selectTargets* script again to the point where you select the folder, then cancel it.
+- Image shift limits exceeded after start tilt images were collected: Double check if you want to collect targets with such high image shifts. If yes, change the *imageShiftLimit* setting in the PACEtomo acquisition script accordingly.
+- to be continued...

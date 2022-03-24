@@ -3,7 +3,7 @@ Parallel cryo electron tomography (PACE-tomo) is a SerialEM script written in Py
 Please refer to the publication for more details.
 
 ### Citation
-
+Eisenstein, F., Yanagisawa, H., Kashihara, H., Kikkawa, M., Tsukita, S., Danev, R. (submitted). **Parallel cryo electron tomography on *in situ* lamellae**
 
 ## Hardware
 

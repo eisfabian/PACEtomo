@@ -106,4 +106,5 @@ All files are created in the folder you specified during target selection. Targe
 ### Troubleshooting
 - The *rootname_tgts.txt* was not found: Run the *PACEtomo_selectTargets* script again to the point where you select the folder, then cancel it.
 - Image shift limits exceeded after start tilt images were collected: Double check if you want to collect targets with such high image shifts. If yes, change the *imageShiftLimit* setting in the PACEtomo acquisition script accordingly.
+- Determination of pretilt: The pretilt is determined by the used FIB milling angle (e.g. 10 degrees) and the way the grid is loaded. If the lamella appears thinner/brighter at +10 degrees stage tilt angle, the pretilt value should be -10 degrees and vice versa.
 - to be continued...

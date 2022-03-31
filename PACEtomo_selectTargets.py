@@ -5,8 +5,8 @@
 #		More information at http://github.com/eisfabian/PACEtomo
 # Author:	Fabian Eisenstein
 # Created:	2021/04/19
-# Revision:	v1.1
-# Last Change:	2022/03/23
+# Revision:	v1.2
+# Last Change:	2022/03/31
 # ===================================================================
 
 import serialem as sem
@@ -15,10 +15,10 @@ import serialem as sem
 
 ############ SETTINGS ############ 
 
-delaytime = 5		# time in seconds to apply image shift before next image is taken
-targetByShift = True	# ask to enter image shifts instead of dragging manually
-targetPattern = True	# regular pattern of targets (holey support film)
-alignToP = True		# refine vectors by aligning to hole reference in buffer P
+delaytime = 10		# time in seconds to apply image shift before next image is taken
+targetByShift = False	# ask to enter image shifts instead of dragging manually
+targetPattern = False	# regular pattern of targets (holey support film)
+alignToP = False	# refine vectors by aligning to hole reference in buffer P
 size = 1 		# size of collection pattern (1: 3x3, 2: 5x5, 3: 7x7, ...)
 
 vecA = (2.4, 1.1)	# specimen shift in microns to neighbouring hole
@@ -43,6 +43,7 @@ if alignToP:			#center hole for center of tgtPattern
 userInput = 0
 while userInput == 0:
 	sem.V()
+	sem.OKBox("Please center your target by dragging the image using the right mouse button! (Delay: " + str(delaytime) + " s)")
 	sem.Delay(delaytime)
 	userConfirm = sem.YesNoBox("Do you want to take a preview image here?")
 	if userConfirm == 1:
@@ -73,6 +74,8 @@ sem.WriteLineToFile("1", "SSY = 0")
 sem.WriteLineToFile("1", "")
 
 sem.CloseFile()
+
+sem.Echo("Target 001 (" + userName + "_tgt_001.mrc) with image shifts 0, 0 was added.")
 
 #make view map tor realign to item
 sem.V()
@@ -141,6 +144,8 @@ if targetPattern:
 
 			sem.CloseFile()
 
+			sem.Echo("Target " + str(targetNo).zfill(3) + " (" + userName + "_tgt_" + str(targetNo).zfill(3) + ".mrc) with image shifts " + str(SSX) + ", " + str(SSY) + " was added.")
+
 else:					#loop over other targets
 	targetNo = 1
 	addTargets = 1
@@ -153,10 +158,16 @@ else:					#loop over other targets
 				shifty = sem.EnterDefaultedNumber(0, 1, "Enter Y shift:")
 				sem.ImageShiftByMicrons(shiftx, shifty)
 			sem.V()
+			sem.OKBox("Please center your target by dragging the image using the right mouse button! (Delay: " + str(delaytime) + " s)")
 			sem.Delay(delaytime)
 			userConfirm = sem.YesNoBox("Do you want to take a preview image here?")
 			if userConfirm == 1:
 				sem.L()
+				userRefine = sem.YesNoBox("Do you want to refine the position at this mag?")
+				if userRefine == 1:
+					sem.OKBox("Please center your target by dragging the image using the right mouse button! (Delay: " + str(delaytime) + " s)")
+					sem.Delay(delaytime)
+					sem.L()
 				userInput = sem.YesNoBox("Do you want to use the current image and coordinates as target position? If you choose no, a view image is taken and you have several seconds to apply shifts, before another preview image is taken!")
 		targetNo += 1
 #save map
@@ -180,8 +191,10 @@ else:					#loop over other targets
 
 		sem.CloseFile()
 
+		sem.Echo("Target " + str(targetNo).zfill(3) + " (" + userName + "_tgt_" + str(targetNo).zfill(3) + ".mrc) with image shifts " + str(SSX) + ", " + str(SSY) + " was added.")
+
 		addTargets = sem.YesNoBox("Do you want to add another target?")
 
 
 sem.SetImageShift(0,0)
-sem.OKBox("Target selection completed!")
+sem.OKBox("Target selection completed! " + str(targetNo) + " targets were selected.")

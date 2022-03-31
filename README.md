@@ -49,12 +49,14 @@ There are 3 ways to define targets:
 1. **Selecting targets by dragging the image and centring features of interest manually.**
 	- Inside the script, choose a *delaytime* for dragging the image before taking the next image.
 	- Set all other settings to *False*.
-	- Move the stage to your first target (tracking target).
+	- Move the stage to your first target (tracking target), which should have enough contrast to be tracked confidently.
 	- In the SerialEM UI in the *Image Alignments & Focus* window, uncheck *Move stage for big mouse shifts*.
 	- Run the script from the script window.
 	- Choose the folder where all files related to PACE-tomo including the final tilt series are saved. This should be the same folder for all PACE-tomo acquisition areas if you plan to run them in batch via *Acquire at items*!
 	- Choose a rootname for the current acquisition area. All files related with this acquisition area will be named accordingly.
 	- The script will guide you through the following process: <img src="selectTargets_small.png" alt="Target selection process" />
+	- When dragging the image, make sure not to hit the "Shift" key as this will trigger stage movement.
+	- The script finishes when you do not add any more targets.
  
 2. **Selecting targets by specifying relative image shifts in specimen coordinates.**
 	- The overall process is like 1., but instead of dragging to centre a target, you supply shifts in µm for X and Y that are applied from the current position to reach the next target. This is useful for (semi-)ordered patterns of targets.
@@ -83,6 +85,7 @@ Once target selection is completed all targets are saved in the navigator and a 
 
 Before starting the PACE-tomo collection, please check the settings inside the *PACEtomo* script. Most settings are self-explanatory, but here is a more detailed description for some of them:
 
+- The *startTilt* is usually 0 or, in case of a lamella, the compensating tilt for the *pretilt*.
 - If a defocus range is given, PACE-tomo will use different target defoci (separated by *stepDefocus*) for each target. If you want to use the same target defocus, keep *minDefocus* and *maxDefocus* the same.
 - If your tilt axis offset is not appropriately set, there will be a pseudo-linear defocus slope throughout your tilt series. You can run PACE-tomo on a carbon film, estimate the defocus by CTF fitting and plot the change per degree. Set this value as *focusSlope* to compensate in subsequent acquisitions. Alternatively, refine the tilt axis offset to minimise the slope. In our case, when using SerialEM’s fine eucentricity routine to obtain the tilt axis offset, a significant focus slope remained.
 - You can set delays to be applied after adjusting the image shift and after tilting. On modern state-of-the-art microscopes and resolutions typical of subtomogram averaging, such delays should not be necessary.
@@ -91,14 +94,14 @@ Before starting the PACE-tomo collection, please check the settings inside the *
 - If you want to use PACE-tomo on a regular target pattern (e.g., holey support film), set *tgtPattern* to *True*. Additionally, set *alignToP* to *True* if you saved a hole template to buffer P to use for target alignment.
 - *beamTiltComp* should be set to *True* if you did the [coma vs image shift calibration](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_calibration.htm#hid_focustuning_comavs).
 - By setting *addAF* to *True* you can add additional autofocus routines on target 1 at every branch switch of the dose-symmetric tilt series. This did not yield major improvements in the final defocus spread during testing.
-- *previewAli* can be set to *True* if you want to align every target to its saved Preview image. This can be necessary for small fields of view, when it is important to centre your feature of choice. It can also be useful when transferring a “targetPattern” to a different stage position, where the holey support film might have slightly different grid vectors. In this case you should also have *alignToP* set to *True*.
+- *previewAli* can be set to *True* if you want to align every target to its saved Preview image. This helps to keep your target centred if your *startTilt* is not 0. If your field of view is large and your feature of choice does not have to be centred precisely, *previewAli* can be set to *False* to reduce the initial dose on your targets. *previewAli* can also be useful when transferring a “targetPattern” to a different stage position, where the holey support film might have slightly different grid vectors. In this case you should also have *alignToP* set to *True*.
 - SerialEM has a hard limit on applying image shifts, which is 15 microns by default. *imageShiftLimit* will overwrite this SerialEM property.
 - The number of *dataPoints* used for the calculation of the eucentric offset of each target was kept at 4 throughout all experiments. Changes could be beneficial to performance.
 - The *alignLimit* should keep the cross-correlation alignment in check in cases of low contrast. On good stages the alignment error should never be worse than 0.5 µm.
 - *ignoreFirstNegShift* improves the alignment of the first tilt images from the negative branch and should generally be set to *True*.
 - *slowTilt* should only be set to *True* if you need additional tilt backlash corrections for the positive tilt branch, which should not be necessary for modern stages.
 
-You can run the PACE-tomo acquisition script either by selecting the entry of target 1 in the Navigator and pressing *Run* in the script window or you can run it in batch via the *Acquire at Items...* dialogue. In case you want to run PACE-tomo on a regular grid *targetPattern*, you can copy the *Note* entry from target 1 it was defined on to any other point in the Navigator, allowing for batch PACE-tomo acquisition.
+You can run the PACE-tomo acquisition script either by selecting the entry of target 1 in the Navigator (its Note entry contains *rootname_tgts.txt*) and pressing *Run* in the script window or you can run it in batch via the *Acquire at Items...* dialogue. In case you want to run PACE-tomo on a regular grid *targetPattern*, you can copy the *Note* entry from target 1 it was defined on to any other point in the Navigator, allowing for batch PACE-tomo acquisition.
 
 ### Output
 All files are created in the folder you specified during target selection. Target images have the suffix *tgt_xxx* and collected tilt series have been saved with the suffix *ts_xxx* and their accompoanying *.mdoc* file.

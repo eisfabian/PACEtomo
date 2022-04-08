@@ -43,7 +43,7 @@ Before you run a PACE-tomo acquisition, you must define the targets using the *P
 
 There are 3 ways to define targets:
 
-1. **Selecting targets by dragging the image and centring features of interest manually.**
+1. **Manually: Selecting targets by dragging the image and centring features of interest.**
 	- Inside the script, choose a *delaytime* for dragging the image before taking the next image.
 	- Set all other settings to *False*.
 	- Move the stage to your first target (tracking target), which should have enough contrast to be tracked confidently.
@@ -55,14 +55,14 @@ There are 3 ways to define targets:
 	- When dragging the image, make sure not to hit the "Shift" key as this will trigger stage movement.
 	- The script finishes when you do not add any more targets.
  
-2. **Selecting targets by specifying relative image shifts in specimen coordinates.**
+2. **Fixed shifts: Selecting targets by specifying relative image shifts in specimen coordinates.**
 	- The overall process is like 1., but instead of dragging to centre a target, you supply shifts in µm for X and Y that are applied from the current position to reach the next target. This is useful for (semi-)ordered patterns of targets.
 	- Set only *targetByShift* to *True*. Set all other settings to *False*.
 	- Move the stage to your first target (tracking target).
 	- Run the script from the script window.
 	- The script will guide you through the process.
 
-3. **Selecting a target pattern that can be applied to arbitrary stage positions.**
+3. **Pattern: Selecting a target pattern that can be applied to arbitrary stage positions.**
 	- A target pattern is useful for the collection on regular holey support films and can be easily transferred to other stage positions.
 	- Set *targetPattern* to *True*.
 	- If you have a hole reference saved in buffer P and want to refine the manually entered grid vectors (*vecA* and *vecB*) according to hole positions, set *alignToP* to *True*.
@@ -80,9 +80,10 @@ Once target selection is completed all targets are saved in the navigator and a 
 
 ### Acquisition
 
-Before starting the PACE-tomo collection, please check the settings inside the *PACEtomo* script. Most settings are self-explanatory, but here is a more detailed description for some of them:
+PACE-tomo runs a dose-symmetric tilt scheme with groups of 2 tilt images per branch in all cases. Before starting the PACE-tomo collection, please check the settings inside the *PACEtomo* script. Most settings are self-explanatory, but here is a more detailed description for some of them:
 
-- The *startTilt* is usually 0 or, in case of a lamella, the compensating tilt for the *pretilt*.
+- The *startTilt* is usually 0 or, in case of a lamella, the compensating tilt for the *pretilt* (in case of a *pretilt* of -10 degrees, a *startTilt* of 10 degrees can be used). The *startTilt* has to be divisible by the tilt *step*.
+- The tilt range is given by the *maxTilt* relative to the *startTilt*. This is usually (+/-) 60 or less.
 - If a defocus range is given, PACE-tomo will use different target defoci (separated by *stepDefocus*) for each target. If you want to use the same target defocus, keep *minDefocus* and *maxDefocus* the same.
 - If your tilt axis offset is not appropriately set, there will be a pseudo-linear defocus slope throughout your tilt series. You can run PACE-tomo on a carbon film, estimate the defocus by CTF fitting and plot the change per degree. Set this value as *focusSlope* to compensate in subsequent acquisitions. Alternatively, refine the tilt axis offset to minimise the slope. In our case, when using SerialEM’s fine eucentricity routine to obtain the tilt axis offset, a significant focus slope remained.
 - You can set delays to be applied after adjusting the image shift and after tilting. On modern state-of-the-art microscopes and resolutions typical of subtomogram averaging, such delays should not be necessary.

@@ -51,7 +51,7 @@ There are 3 ways to define targets:
 	- Run the script from the script window.
 	- Choose the folder where all files related to PACE-tomo including the final tilt series are saved. This should be the same folder for all PACE-tomo acquisition areas if you plan to run them in batch via *Acquire at items*!
 	- Choose a rootname for the current acquisition area. All files related with this acquisition area will be named accordingly.
-	- The script will guide you through the following process: <img src="selectTargets_small.png" alt="Target selection process" />
+	- The script will guide you step-by-step through the following process via text windows: <img width="400" src="selectTargets.png" alt="Target selection process" />
 	- When dragging the image, make sure not to hit the "Shift" key as this will trigger stage movement.
 	- The script finishes when you do not add any more targets.
  

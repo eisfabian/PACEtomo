@@ -1,9 +1,6 @@
 # PACE-tomo
 Parallel cryo electron tomography (PACE-tomo) is a SerialEM script written in Python that allows for the collection of an arbitrary number of tilt series in parallel via beam image shift.
-Please refer to the publication for more details.
-
-### Citation
-Eisenstein, F., Yanagisawa, H., Kashihara, H., Kikkawa, M., Tsukita, S., Danev, R. (submitted). **Parallel cryo electron tomography on *in situ* lamellae**
+Please refer to the [publication](https://www.biorxiv.org/search/Parallel%252Bcryo%252Belectron%252Btomography%252Bon%252Bin%252Bsitu%252Blamellae) for more details.
 
 ## Hardware
 
@@ -36,7 +33,7 @@ To check if SerialEM has access to the modules, run this script inside a SerialE
 To use PACE-tomo just copy the content of *PACEtomo.py* and *PACEtomo_selectTargets.py* in an empty SerialEM script slot each.
 
 ## Usage
-Setup SerialEM low dose mode like you would for conventional tilt series acquisition. Make sure to set the appropriate [tilt axis offset](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_tasks.htm#hid_tasks_settiltaxisoffset) (more details below). It is recommended to do a [coma-free alignment](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_focus.htm#hid_focus_coma_by_ctf) and a [coma vs image shift calibration](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_calibration.htm#hid_focustuning_comavs) to minimise beam tilt for large image shifts (you might need a carbon film to get nice power spectra for CTF fitting). However, in most cases beam tilt will not be resolution limiting.
+For optimal results, load the sample such that the lamellae are oriented with the milling direction perpendicular to the tilt axis ([schematic for a Krios autoloader](gridOrientation.png)). Set up SerialEM low dose mode like you would for conventional tilt series acquisition. Offsets for *Focus* and *Trial* areas can be set to 0 to preserve specimen area. Make sure to set the appropriate [tilt axis offset](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_tasks.htm#hid_tasks_settiltaxisoffset) (more details below). It is recommended to do a [coma-free alignment](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_focus.htm#hid_focus_coma_by_ctf) and a [coma vs image shift calibration](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_calibration.htm#hid_focustuning_comavs) to minimise beam tilt for large image shifts (you might need a carbon film to get nice power spectra for CTF fitting). However, in most cases beam tilt will not be resolution limiting.
 
 ### Target selection
 

@@ -1,6 +1,6 @@
 # PACE-tomo
 Parallel cryo electron tomography (PACE-tomo) is a SerialEM script written in Python that allows for the collection of an arbitrary number of tilt series in parallel via beam image shift.
-Please refer to the [publication](https://www.biorxiv.org/search/Parallel%252Bcryo%252Belectron%252Btomography%252Bon%252Bin%252Bsitu%252Blamellae) for more details.
+Please refer to the [publication](https://doi.org/10.1101/2022.04.07.487557) for more details.
 
 ## Hardware
 

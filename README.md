@@ -106,9 +106,8 @@ All files are created in the folder you specified during target selection. Targe
 
 ### Video Tutorials
 
-[PACE-tomo setup and collection on a lamella](https://www.youtube.com/watch?v=NY3mjphVGfA)
-
-[PACE-tomo setup on a holey film](https://www.youtube.com/watch?v=LtGu3t6dkfk)
+[![PACE-tomo setup and collection on a lamella](https://img.youtube.com/vi/NY3mjphVGfA/0.jpg)](https://www.youtube.com/watch?v=NY3mjphVGfA)
+[![PACE-tomo setup on a holey film](https://img.youtube.com/vi/LtGu3t6dkfk/0.jpg)](https://www.youtube.com/watch?v=LtGu3t6dkfk)
 
 ### Troubleshooting
 - The *rootname_tgts.txt* was not found: Run the *PACEtomo_selectTargets* script again to the point where you select the folder, then cancel it.

@@ -104,6 +104,12 @@ You can run the PACE-tomo acquisition script either by selecting the entry of ta
 ### Output
 All files are created in the folder you specified during target selection. Target images have the suffix *tgt_xxx* and collected tilt series have been saved with the suffix *ts_xxx* and their accompoanying *.mdoc* file.
 
+### Video Tutorials
+
+[PACE-tomo setup and collection on a lamella](https://www.youtube.com/watch?v=NY3mjphVGfA)
+
+[PACE-tomo setup on a holey film](https://www.youtube.com/watch?v=LtGu3t6dkfk)
+
 ### Troubleshooting
 - The *rootname_tgts.txt* was not found: Run the *PACEtomo_selectTargets* script again to the point where you select the folder, then cancel it.
 - Image shift limits exceeded after start tilt images were collected: Double check if you want to collect targets with such high image shifts. If yes, change the *imageShiftLimit* setting in the PACEtomo acquisition script accordingly.

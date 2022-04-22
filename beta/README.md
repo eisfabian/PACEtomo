@@ -10,3 +10,4 @@ This folder contains scripts and versions that have not been extensively tested 
   - The rest of the process is the same with the exception that the View images are taken at the coordinates of the next point after a target was selected.
   - You can skip points by saying no when asked to take a Preview image. 
   - You can add additional targets after going through all points.
+- Minor text fixes.

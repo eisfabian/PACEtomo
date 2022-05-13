@@ -45,7 +45,11 @@ There are 3 ways to define targets:
 
 1. **Manually: Selecting targets by dragging the image and centring features of interest.**
 	- Inside the script, choose a *delaytime* for dragging the image before taking the next image.
+	- By default the script will use View mode to find targets. If you set *useSearch* to *True*, it will use Search mode instead.
 	- Set all other settings to *False*.
+	- If you want to choose your targets freely, just proceed with the next step. Alternatively, you can use a group of points as template for target selection (not in the video tutorial):
+		- Use *Add Points* in the Navigator to select points on a montage or a low magnification image.
+  		- Select the **first** point of the group and run the script as described below.
 	- Move the stage to your first target (tracking target), which should have enough contrast to be tracked confidently.
 	- In the SerialEM UI in the *Image Alignments & Focus* window, uncheck *Move stage for big mouse shifts*.
 	- Run the script from the script window.
@@ -113,3 +117,9 @@ All files are created in the folder you specified during target selection. Targe
 - The *rootname_tgts.txt* was not found: Run the *PACEtomo_selectTargets* script again to the point where you select the folder, then cancel it.
 - Image shift limits exceeded after start tilt images were collected: Double check if you want to collect targets with such high image shifts. If yes, change the *imageShiftLimit* setting in the PACEtomo acquisition script accordingly.
 - to be continued...
+
+### Recent changes
+#### PACEtomo_selectTargets.py [v1.3]
+- Added option to use SerialEM's Low Dose Search instead of View to allow for a different field of view during target selection. Search is not used for a *targetPattern* setup and the map for realignment of target 1 is still taken in View mode.
+- Added option to run target selection on a group of points.
+- Minor text fixes.

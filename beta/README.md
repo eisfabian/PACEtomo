@@ -10,7 +10,7 @@ This folder contains scripts and versions that have not been extensively tested 
   - Select the **first** point of the group and run the script.
 
 ### PACEtomo_measureOffset.py [v1.0]
-- This script should give you a tilt axis offset estimated by movement along the z-axis during tilting (Thanks to Wim Hagen for the suggestion!). Unfortunately, I could not yet test it on a Krios so I can't tell how accurate the estimation will be. Please let me know if you give it a try!
+- This script should give you a tilt axis offset estimated by movement along the z-axis during tilting (Thanks to Wim Hagen for the suggestion!). It usually gives results within 0.1-0.2 microns of the optimal position for PACEtomo and I adjust it depending on the focus slopes I observe during my PACEtomo runs. Please let me know if you give it a try!
 - How to use:
   - You can use the default values or adjust the maximum tilt and tilt increment for more or less datapoints used in the estimation.
   - Make sure that there are no dark images or holes where the script measures the defoci.

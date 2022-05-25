@@ -5,8 +5,8 @@
 #		More information at http://github.com/eisfabian/PACEtomo
 # Author:	Fabian Eisenstein
 # Created:	2022/04/22
-# Revision:	v1.0
-# Last Change:	2022/05/07
+# Revision:	v1.1
+# Last Change:	2022/05/20: fixed considering rotation in pretilt
 # ===================================================================
 
 import serialem as sem
@@ -51,7 +51,7 @@ print("Normal vector: " + str(norm))
 #tiltx = -np.degrees(np.arctan(norm[0]))
 #print(tiltx)
 
-tilty = -np.degrees(np.arctan(norm[1]))
+tilty = -np.degrees(np.arctan(np.sqrt(norm[0:2].dot(norm[0:2]))))
 print("Estimated pretilt: " + str(round(tilty, 1)) + " degrees")
 
 rotation = -np.degrees(np.arctan(norm[0]/norm[1]))

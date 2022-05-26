@@ -10,11 +10,11 @@ PACE-tomo has been tested on a JEOL JEM-F200 and a Thermo Fisher Scientific Krio
 PACE-tomo does not require the installation of any stand-alone software. However, it does require SerialEM 4.0 or higher capable of running Python scripts.
 
 You can run the following lines of code in a SerialEM script window to test if Python is configured correctly:
-
-	#!Python
-	import serialem as sem
-	sem.OKBox("Python works!")
-
+```python
+#!Python
+import serialem as sem
+sem.OKBox("Python works!")
+```
 If you get an error message, please consult the [SerialEM website](https://bio3d.colorado.edu/SerialEM/hlp/html/about_scripts.htm#Python) on how to setup Python for SerialEM.
 
 Additionally, you require the numpy and scipy modules for Python. Depending on your Python installation the following commands in the Windows Command Prompt should take care of it (you will need network connection):
@@ -23,13 +23,13 @@ Additionally, you require the numpy and scipy modules for Python. Depending on y
 	pip install scipy
 
 To check if SerialEM has access to the modules, run this script inside a SerialEM script window:
-
-	#!Python
-	import serialem as sem
-	import numpy as np
-	from scipy import optimize
-	sem.OKBox("All necessary modules are installed!")
-
+```python
+#!Python
+import serialem as sem
+import numpy as np
+from scipy import optimize
+sem.OKBox("All necessary modules are installed!")
+```
 To use PACE-tomo just copy the content of *PACEtomo.py* and *PACEtomo_selectTargets.py* in an empty SerialEM script slot each.
 
 ## Usage
@@ -119,6 +119,7 @@ All files are created in the folder you specified during target selection. Targe
 - to be continued...
 
 ### Recent changes
+Please also check the [beta folder](https://github.com/eisfabian/PACEtomo/tree/main/beta) for the latest updates!
 #### PACEtomo_selectTargets.py [v1.3]
 - Added option to use SerialEM's Low Dose Search instead of View to allow for a different field of view during target selection. Search is not used for a *targetPattern* setup and the map for realignment of target 1 is still taken in View mode.
 - Added option to run target selection on a group of points.

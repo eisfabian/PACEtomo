@@ -5,8 +5,9 @@
 #		More information at http://github.com/eisfabian/PACEtomo
 # Author:	Fabian Eisenstein
 # Created:	2021/04/19
-# Revision:	v1.4
-# Last Change:	2022/05/25: beam diameter visualization
+# Revision:	v1.4.1
+# Last Change:	2022/06/08: added option to shift beam diameter by tilt axis offset
+#		2022/05/25: beam diameter visualization
 # ===================================================================
 
 import serialem as sem
@@ -33,6 +34,7 @@ vecB 		= (-vecA[1], vecA[0])
 drawBeam 	= True		# draws navigator item representing beam diameter (only on Thermo Scientific microscopes, needs ReportIlluminatedArea) [NOT IN VIDEO TUTORIAL]
 beamDiameter 	= 0 		# beam diameter in microns (if 0, ReportIlluminatedArea will be used, which is only available on some microscopes)
 maxTilt 	= 60		# tilt angle to calculate stretching of beam perpendicular to tilt axis
+tiltAxisOffset	= 0 		# if drawn beam is off center, try to enter the tilt axis offset you supplied to SerialEM here
 
 ########## END SETTINGS ########## 
 
@@ -159,18 +161,16 @@ mapIndex = sem.NewMap(0, userName + "_tgts.txt")
 sem.SetItemAcquire(int(mapIndex))
 
 #save coords
-(ISX0, ISY0, RepVal3, RepVal4, RepVal5, RepVal6) = sem.ReportImageShift()
+(ISX0, ISY0, RepVal3, RepVal4, ISXs, ISYs) = sem.ReportImageShift()
 (SSX0, SSY0) = sem.ReportSpecimenShift()
 (stageX, stageY, stageZ) = sem.ReportStageXYZ()
-stageX -= SSX0
-stageY -= SSY0
 
 sem.WriteLineToFile("1", "_tgt = 001")
 sem.WriteLineToFile("1", "tgtfile = " + userName + "_tgt_001.mrc")
 sem.WriteLineToFile("1", "tsfile = " + userName + "_ts_001.mrc")
 sem.WriteLineToFile("1", "map = " + str(mapIndex))
-sem.WriteLineToFile("1", "stageX = " + str(stageX))
-sem.WriteLineToFile("1", "stageY = " + str(stageY))
+sem.WriteLineToFile("1", "stageX = " + str(stageX + ISXs))
+sem.WriteLineToFile("1", "stageY = " + str(stageY + ISYs))
 sem.WriteLineToFile("1", "SSX = 0")
 sem.WriteLineToFile("1", "SSY = 0")
 sem.WriteLineToFile("1", "")
@@ -194,12 +194,12 @@ if drawBeam:
 	navFile = sem.ReportNavFile()
 	navHeader, navItems = parseNav(navFile)
 
-	ptsX = (a * np.cos(phi) + stageX).round(3)
+	ptsX = (a * np.cos(phi) + stageX + ISXs).round(3)
 	ptsX = np.append(ptsX, ptsX[0])
-	ptsY = (b * np.sin(phi) + stageY).round(3)
+	ptsY = (b * np.sin(phi) + stageY + ISYs - tiltAxisOffset).round(3)
 	ptsY = np.append(ptsY, ptsY[0])
 
-	navItems.append({'index': int(navItems[-1]["index"]) + 1, 'Item': str(int(navItems[-1]["Item"]) + 1), 'Color': ['3'], 'StageXYZ': [str(stageX), str(stageY), str(stageZ)], 'NumPts': [str(n+1)], 'Regis': ['1'], 'Type': ['1'], 'Note': ['beam_diameter'], 'PtsX': ptsX, 'PtsY': ptsY})
+	navItems.append({'index': int(navItems[-1]["index"]) + 1, 'Item': str(int(navItems[-1]["Item"]) + 1), 'Color': ['3'], 'StageXYZ': [str(stageX + ISXs), str(stageY + ISYs - tiltAxisOffset), str(stageZ)], 'NumPts': [str(n+1)], 'Regis': ['1'], 'Type': ['1'], 'Note': ['beam_diameter'], 'PtsX': ptsX, 'PtsY': ptsY})
 
 	writeNav(navHeader, navItems, navFile)
 	sem.ReadNavFile(navFile)
@@ -350,10 +350,10 @@ else:					#loop over other targets
 
 			ptsX = (a * np.cos(phi) + stageX + ISX).round(3)
 			ptsX = np.append(ptsX, ptsX[0])
-			ptsY = (b * np.sin(phi) + stageY + ISY).round(3)
+			ptsY = (b * np.sin(phi) + stageY + ISY - tiltAxisOffset).round(3)
 			ptsY = np.append(ptsY, ptsY[0])
 
-			navItems.append({'index': int(navItems[-1]["index"]) + 1, 'Item': str(int(navItems[-1]["Item"]) + 1), 'Color': ['3'], 'StageXYZ': [str(stageX + ISX), str(stageY + ISY), str(stageZ)], 'NumPts': [str(n+1)], 'Regis': ['1'], 'Type': ['1'], 'Note': ['beam_diameter'], 'PtsX': ptsX, 'PtsY': ptsY})
+			navItems.append({'index': int(navItems[-1]["index"]) + 1, 'Item': str(int(navItems[-1]["Item"]) + 1), 'Color': ['3'], 'StageXYZ': [str(stageX + ISX), str(stageY + ISY - tiltAxisOffset), str(stageZ)], 'NumPts': [str(n+1)], 'Regis': ['1'], 'Type': ['1'], 'Note': ['beam_diameter'], 'PtsX': ptsX, 'PtsY': ptsY})
 
 			writeNav(navHeader, navItems, navFile)
 			sem.ReadNavFile(navFile)

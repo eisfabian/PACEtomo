@@ -6,8 +6,8 @@
 #		More information at http://github.com/eisfabian/PACEtomo
 # Author:	Fabian Eisenstein
 # Created:	2021/04/16
-# Revision:	v1.4
-# Last Change:	2022/09/27: bug fixes after Krios testing
+# Revision:	v1.4.1
+# Last Change:	2022/10/02: bug fixes
 # ===================================================================
 
 ############ SETTINGS ############ 
@@ -409,6 +409,7 @@ with open(os.path.join(curDir, tf[-1])) as f:								# open last tgts or tgts_ru
 targets, savedRun, resume = parseTargets(targetFile)
 
 ### Recovery data
+recoverInput = 0
 recover = False
 realign = False
 if savedRun != False and (resume["sec"] > 0 or resume["pos"] > 0):

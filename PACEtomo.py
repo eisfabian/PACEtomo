@@ -6,8 +6,8 @@
 #		More information at http://github.com/eisfabian/PACEtomo
 # Author:	Fabian Eisenstein
 # Created:	2021/04/16
-# Revision:	v1.4.1
-# Last Change:	2022/10/02: bug fixes
+# Revision:	v1.4.2
+# Last Change:	2022/10/04: fixed remTime division by 0
 # ===================================================================
 
 ############ SETTINGS ############ 
@@ -334,8 +334,11 @@ def Tilt(tilt):
 		progress = position[pos][pn]["sec"] * len(position) + pos + 1
 		percent = round(100 * (progress / maxProgress), 1)
 		bar = '#' * int(percent / 2) + '_' * (50 - int(percent / 2))
-		remTime = (sem.ReportClock() - startTime) / (percent - resumePercent) * (100 - percent)
-		sem.Echo("Progress: |" + bar + "| " + str(percent) + " % (" + str(int(remTime / 60)) + " min remaining)")
+		if percent - resumePercent > 0:
+			remTime = int((sem.ReportClock() - startTime) / (percent - resumePercent) * (100 - percent) / 60)
+		else:
+			remTime = "?"
+		sem.Echo("Progress: |" + bar + "| " + str(percent) + " % (" + str(remTime) + " min remaining)")
 
 		if extendedMdoc:
 			sem.AddToAutodoc("SpecimenShift", str(position[pos][pn]["SSX"]) + " " + str(position[pos][pn]["SSY"]))
@@ -747,7 +750,7 @@ else:
 
 	maxProgress = ((maxTilt - minTilt) / step + 1) * len(position)
 	progress = resume["sec"] * len(position) + resume["pos"]
-	resumePercent = round(100 * (progress / maxProgress), 1) - 0.1 					# ensure that rounding does not result in division by 0
+	resumePercent = round(100 * (progress / maxProgress), 1)
 	startTime = sem.ReportClock()
 
 

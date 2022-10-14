@@ -6,8 +6,8 @@
 #		More information at http://github.com/eisfabian/PACEtomo
 # Author:	Fabian Eisenstein
 # Created:	2021/04/16
-# Revision:	v1.4.2
-# Last Change:	2022/10/04: fixed remTime division by 0
+# Revision:	v1.4.3
+# Last Change:	2022/10/14: fixed set dir loop, fixed premature completion
 # ===================================================================
 
 ############ SETTINGS ############ 
@@ -388,18 +388,20 @@ if tgtPattern:												# initialize in case tgts file contains values
 ### Find target file
 sem.ReportNavItem()
 navNote = sem.GetVariable("navNote")
-fileStem = navNote.rsplit(".txt", 1)[0]
+fileStem, fileExt = os.path.splitext(navNote)
 curDir = sem.ReportDirectory()
 
-if fileStem != "":
+if fileStem != "" and fileExt == ".txt":
 	tf = sorted(glob.glob(os.path.join(curDir, fileStem + ".txt")))					# find  tgts file
 	tfr = sorted(glob.glob(os.path.join(curDir, fileStem + "_run??.txt")))				# find run files but not copied tgts file
 	tf.extend(tfr)											# only add run files to list of considered files
 else:
 	sem.OKBox("The navigator item note does not contain a target file. Make sure to setup PACEtomo targets using the selectTargets script!")
-	Exit()
+	sem.Exit()
 while tf == []:
-	sem.OKBox("\n".join(["Target file not found! Please choose the directory containing the target file!", "WARNING: All future target files will be searched here!"]))
+	searchInput = sem.YesNoBox("\n".join(["Target file not found! Please choose the directory containing the target file!", "WARNING: All future target files will be searched here!"]))
+	if searchInput == 0:
+		sem.Exit()
 	sem.UserSetDirectory("Please choose the directory containing the target file!")
 	curDir = sem.ReportDirectory()
 	tf = sorted(glob.glob(os.path.join(curDir, fileStem + "*.txt")))
@@ -755,7 +757,7 @@ else:
 
 
 ### Tilt series
-for i in range(startstep, int(branchsteps)):
+for i in range(startstep, int(np.ceil(branchsteps))):
 	for j in range(substep[0], 2):
 		plustilt += step
 		if all([pos[1]["skip"] for pos in position]): continue

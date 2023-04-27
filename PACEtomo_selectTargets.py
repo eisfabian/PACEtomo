@@ -5,8 +5,9 @@
 #		More information at http://github.com/eisfabian/PACEtomo
 # Author:	Fabian Eisenstein
 # Created:	2021/04/19
-# Revision:	v1.5
-# Last Change:	2022/09/27: bug fixes after Krios testing
+# Revision:	v1.5.1
+# Last Change:	2023/04/27: fixed realign to tracking target
+#		2022/09/27: bug fixes after Krios testing
 # ===================================================================
 
 ############ SETTINGS ############ 
@@ -395,7 +396,7 @@ def gui(targetFile):
 					mapIndex = int(sem.NavIndexWithNote(userName + "_tgt_001_view.mrc"))	# use tgt_001_view in case tgtfile does not exist
 			else:
 				mapIndex = int(sem.NavIndexWithNote(userName + "_tgts.txt"))
-			sem.RealignToOtherItem(mapIndex, 0)							# realign to tracking TS
+			sem.RealignToOtherItem(mapIndex, 1)							# realign to tracking TS
 			sem.GoToLowDoseArea("R")
 			stageX, stageY, stageZ = sem.ReportStageXYZ()
 			SSX0, SSY0 = sem.ReportSpecimenShift()

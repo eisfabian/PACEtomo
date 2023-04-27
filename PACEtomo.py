@@ -6,8 +6,9 @@
 #		More information at http://github.com/eisfabian/PACEtomo
 # Author:	Fabian Eisenstein
 # Created:	2021/04/16
-# Revision:	v1.4.3
-# Last Change:	2022/10/14: fixed set dir loop, fixed premature completion
+# Revision:	v1.4.4
+# Last Change:	2023/04/27: fixed addAF for negative branch
+#		2022/10/14: fixed set dir loop, fixed premature completion
 # ===================================================================
 
 ############ SETTINGS ############ 
@@ -222,7 +223,7 @@ def Tilt(tilt):
 
 ### Autofocus (optional) and tracking TS settings
 		if pos == 0:
-			if addAF and (tilt - startTilt) % (2 * increment) != 0 and tilt - startTilt > increment:
+			if addAF and (tilt - startTilt) % (2 * increment) != 0 and abs(tilt - startTilt) > step:
 				sem.G(-1)
 				defocus, *_ = sem.ReportAutoFocus()
 				focuserror = float(defocus) - targetDefocus

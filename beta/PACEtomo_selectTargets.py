@@ -5,8 +5,8 @@
 #		More information at http://github.com/eisfabian/PACEtomo
 # Author:	Fabian Eisenstein
 # Created:	2021/04/19
-# Revision:	v1.6
-# Last Change:	2023/04/28: added optional sample name, fixed setup from polygon
+# Revision:	v1.6.1
+# Last Change:	2023/05/08: fixed preTilt sign fix
 # ===================================================================
 
 ############ SETTINGS ############ 
@@ -886,9 +886,8 @@ def gui(targetFile):
 			##########		
 			sem.Echo("Fitted plane into cloud of " + str(len(geoPoints)) + " points.")
 			sem.Echo("Normal vector: " + str(norm))
-			#tilty = -np.degrees(np.arctan(np.linalg.norm(norm[0:2])))
-			tilty = np.degrees(np.arccos(norm[2]))
-			tilty = -tilty if tilty < 90 else -tilty + 180
+			sign = 1 if norm[1] <= 0 else -1
+			tilty = sign * np.degrees(np.arccos(norm[2]))
 			sem.Echo("Estimated pretilt: " + str(round(tilty, 1)) + " degrees")
 			rotation = -np.degrees(np.arctan(norm[0]/norm[1]))
 			sem.Echo("Estimated rotation: " + str(round(rotation, 1)) + " degrees")

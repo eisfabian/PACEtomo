@@ -24,10 +24,17 @@ This update includes mainly options for more robust tracking (e.g. for cryoARMs)
 ### PACEtomo_selectTargets.py [v1.6]
 Lots of bug fixes, addition of target setup from polygons and initial grid vector estimation.
 - Polygon setup: 
+  - Draw the desired polygon using the navigator.
+  - Move the stage to your desired tracking position.
+  - Prepare the selectTargets script:
+    - You can change the *beamDiameter* setting to spread out the targets.
+    - The *maxTilt* setting is used to scale the distance between the targets perpendicular to the tilt axis.
+    - You can rotate the grid vectors using the *patternRot* setting.
   - Run the script on the polygon item in the Navigator. 
-  - You can change the *beamDiameter* setting to spread out the targets.
-  - The *maxTilt* setting is used to scale the distance between the targets perpendicular to the tilt axis.
-  - You can rotate the grid vectors using the *patternRot* setting.
+  - You will be asked if you want to run the polygon setup if the script detected the polygon properly.
+  - Select your tracking target as usual by dragging the image and confirming the target selection.
+  - A grid of points will be created to fill the polygon starting from the tracking target as origin.
+  - Note: No preview images will be saved for your targets and hence, the collection might be slightly off the targets shown. You can use the *Save Views* function in the GUI to save view images for every point and set *viewAli* to *True* in the PACEtomo script to use the view images for initial target alignment.
 - Changes:
   - Added initial vector estimation for targetPattern using auto-correlation (needs at least 9 holes in the field of View).
   - Added targetPattern setup to fill a polygon using beamDiameter as distance between targets (needs some testing).

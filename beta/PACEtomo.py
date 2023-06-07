@@ -6,8 +6,8 @@
 #		More information at http://github.com/eisfabian/PACEtomo
 # Author:	Fabian Eisenstein
 # Created:	2021/04/16
-# Revision:	v1.6
-# Last Change:	2023/04/28: added Krios coldFEG support (needs testing)
+# Revision:	v1.6.1
+# Last Change:	2023/06/07: minor fixes, added PriorRecordDose
 # ===================================================================
 
 ############ SETTINGS ############ 
@@ -313,7 +313,7 @@ def Tilt(tilt):
 
 		bufISXpre = 0 										# only non 0 if two tracking images are taken
 		bufISYpre = 0
-		if tilt != startTilt or not tgtPattern:							# align to previous image if it exists 
+		if tilt != startTilt or (not tgtPattern and "tgtfile" in targets[pos].keys()):		# align to previous image if it exists 
 			if pos != 0: 
 				sem.LimitNextAutoAlign(alignLimit)					# gives maximum distance for AlignTo to avoid runaway tracking
 			sem.AlignTo("O")
@@ -326,7 +326,7 @@ def Tilt(tilt):
 					sem.AlignTo("O")
 
 		bufISX, bufISY = sem.ReportISforBufferShift()
-		sem.ImageShiftByUnits(position[pos][pn]["ISXali"], position[pos][pn]["ISYali"])	# remove accumulated buffer shifts to calculate alignment to initial startTilt image
+		sem.ImageShiftByUnits(position[pos][pn]["ISXali"], position[pos][pn]["ISYali"])		# remove accumulated buffer shifts to calculate alignment to initial startTilt image
 
 		if beamTiltComp: 
 			sem.RestoreBeamTilt()
@@ -336,6 +336,12 @@ def Tilt(tilt):
 
 		position[pos][pn]["ISXset"], position[pos][pn]["ISYset"], *_ = sem.ReportImageShift()
 		position[pos][pn]["SSX"], position[pos][pn]["SSY"] = sem.ReportSpecimenShift()
+
+		dose = sem.ImageConditions("A")[0]
+		if dose > 0:
+			sem.AddToAutodoc("PriorRecordDose", str(position[pos][pn]["dose"]))			# write PriorRecordDose to mdoc	
+			position[pos][1]["dose"] += dose
+			position[pos][2]["dose"] += dose
 
 		if pos == 0:										# apply measured shifts of first/tracking position to other positions
 			for i in range(1, len(position)):
@@ -707,7 +713,7 @@ if not recover:
 ### Target setup
 	sem.Echo("Setting up " + str(len(targets)) + " targets...")
 
-	posTemplate = {"SSX": 0, "SSY": 0, "focus": 0, "z0": 0, "n0": 0, "shifts": [], "angles": [], "ISXset": 0, "ISYset": 0, "ISXali": 0, "ISYali": 0, "sec": 0, "skip": False}
+	posTemplate = {"SSX": 0, "SSY": 0, "focus": 0, "z0": 0, "n0": 0, "shifts": [], "angles": [], "ISXset": 0, "ISYset": 0, "ISXali": 0, "ISYali": 0, "dose": 0, "sec": 0, "skip": False}
 	position = []
 	skippedTgts = 0
 	for i, tgt in enumerate(targets):
@@ -852,6 +858,7 @@ else:
 			position[-1][i+1]["ISYset"] = float(savedRun[pos][i]["ISYset"])
 			position[-1][i+1]["ISXali"] = float(savedRun[pos][i]["ISXali"])
 			position[-1][i+1]["ISYali"] = float(savedRun[pos][i]["ISYali"])
+			position[-1][i+1]["dose"] = float(savedRun[pos][i]["dose"])
 			position[-1][i+1]["sec"] = int(savedRun[pos][i]["sec"])
 			position[-1][i+1]["skip"] = True if savedRun[pos][i]["skip"] == "True" or targets[pos]["skip"] == "True" else False
 		if targets[pos]["skip"] == "True":

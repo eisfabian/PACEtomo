@@ -3,8 +3,8 @@
 #ScriptName	PACEtomo_targetsFromMontage
 # Author:	Fabian Eisenstein
 # Created:	2022/12/09
-# Revision:	v0.10
-# Last Change:	2023/02/28: automatically determine virt map binning
+# Revision:	v0.12
+# Last Change:	2023/06/07: added sanity check for template pixel sizes, limited binning to multiple of 2, added new EndAcquireAtItems command (SerialEM 4.1, 12-May-23)
 
 # Take a montage of your target area. 
 # Select targets using the navigator with "Add Points" (points have to be part of the same group).
@@ -16,7 +16,7 @@
 
 ##### SETTINGS #####
 
-noUI 	= False	# set to True to avoid folder/name selection (e.g. to run the script in a Acquire at Items routine), it will use the label of the montage as name template
+noUI 	= False		# set to True to avoid folder/name selection (e.g. to run the script in a Acquire at Items routine), it will use the label of the montage as name template
 
 ### END SETTINGS ###
 
@@ -148,6 +148,7 @@ groupID = int(groupInfo[1])
 drawnID = int(sem.NavIndexItemDrawnOn(navID))
 
 if drawnID == 0:
+	sem.EndAcquireAtItems()	# only available from 12-May-23
 	sem.Echo("NOTE: This nav item is not a point on a map and will be ignored.")
 	sem.TiltTo(360)		# Causing script error to keep Acquire flag (as opposed to python error which removes Acuire flag)
 	sem.Exit()
@@ -224,6 +225,11 @@ sem.LoadOtherMap(viewID, "A")
 imgProp = sem.ImageProperties("A")
 viewPixSize = imgProp[4] * 10 / imgProp[2]
 
+if recordPixSize == viewPixSize:
+	sem.OKBox("ERROR: Template for View or Preview show the same pixel size! Make sure the maps could be loaded properly!")
+	sem.Echo("ERROR: Template for View or Preview show the same pixel size! Make sure the maps could be loaded properly!")
+	sem.Exit()	
+
 # Make sure s2s matrix is defined
 
 if not dummy and s2ssMatrix is None:
@@ -262,7 +268,19 @@ fov_viewX = int(camX * viewPixSize / pixSize)
 fov_viewY = int(camY * viewPixSize / pixSize)
 
 out_bin_rec = min(8, int(pixSize / recordPixSize)) 	# binning factor of the created virtual map for Record mode (needs to be int)
+if out_bin_rec < 8:
+	if out_bin_rec < 4:
+		if out_bin_rec > 1:
+			out_bin_rec = 2
+	else:
+		out_bin_rec = 4
 out_bin_view = min(8, int(pixSize / viewPixSize))	# binning factor of the created virtual map for View mode (needs to be int)
+if out_bin_view < 8:
+	if out_bin_view < 4:
+		if out_bin_view > 1:
+			out_bin_view = 2
+	else:
+		out_bin_view = 4
 out_recX = int(camX / out_bin_rec)
 out_recY = int(camY / out_bin_rec)
 out_viewX = int(camX / out_bin_view)

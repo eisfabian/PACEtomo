@@ -56,6 +56,7 @@ Huge thanks to Zhengyi Yang for doing a lot of testing and troubleshooting!
   - Add points using the navigator (as one group). The first point will be considered the tracking target.
   - Run the script on a point.
   - You can also run the script in the dummy version. Any error/warning messages can be ignored.
+    - WARNING: There seems to be cross talk between the DUMMY instance and the real instance of SerialEM when running DUMMY on the microscope computer. I'm not sure if that's a new bug or if that's always been the case. I tested the script in a DUMMY version running on a separate computer.
   - You can run the script on several groups of points using Acquire at Items if you check "Skip stage move to item if possible". You can automate the file naming by setting *noUI* to *True*.
 
 Please let me know if you run into any issues or have any feature requests. If there is enough interest, I will work on this further!

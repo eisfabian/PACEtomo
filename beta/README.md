@@ -27,6 +27,7 @@ Lots of bug fixes, addition of target setup from polygons and initial grid vecto
   - Draw the desired polygon using the navigator.
   - Move the stage to your desired tracking position.
   - Prepare the selectTargets script:
+    - Set *targetPattern* to *True* and *alignToP* to *False*.
     - You can change the *beamDiameter* setting to spread out the targets.
     - The *maxTilt* setting is used to scale the distance between the targets perpendicular to the tilt axis.
     - You can rotate the grid vectors using the *patternRot* setting.

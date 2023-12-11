@@ -1,6 +1,29 @@
 # beta
 This folder contains scripts and versions that have not been extensively tested yet. Your feedback is appreciated!
 
+### PACEtomo.py [v1.7]
+Mostly small fixes and quality of life improvements.
+- Changes:
+  - Added status line updates to check on progress more easily.
+  - Tracking of PriorRecordDose for all targets in the mdoc files (not tested yet).
+  - Added SerialEM version check.
+  - Added option for auto ZLP centering when using a target pattern (automatically uses a position slightly outside the target pattern).
+  - Added target montage acquisition (collect NxN montage at every target position instead of single image).
+  - Removed split log function as SerialEM now automatically prunes the log file.
+  - Added additional warnings.
+  - Fixed CTF fitting target defocus range being too wide.
+  - Changed default setting from CTFfind to CTFplotter, which is now available in SerialEM without additional installation.
+  - Minor text fixes.
+
+### PACEtomo_selectTargets.py [v1.7]
+Mostly small fixes and quality of life improvements.
+- Changes:
+  - Made grid vector finding more robust.
+  - Loading of maps into GUI (still  a bit slow and imprecise but helps with setting geo points).
+  - Added support for SPACEscore.
+  - Changed grid setup to spiral pattern instead of row-wise.
+  - Minor text fixes.
+
 ### PACEtomo.py [v1.6]
 This update includes mainly options for more robust tracking (e.g. for cryoARMs), CFEG functions and bug fixes.
 - Notes:

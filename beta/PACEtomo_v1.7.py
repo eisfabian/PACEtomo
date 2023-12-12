@@ -85,7 +85,7 @@ import glob
 import numpy as np
 from scipy import optimize
 
-versionPACE = "1.6.2beta"
+versionPACE = "1.7.0beta"
 versionCheck = sem.IsVersionAtLeast("40100", "20231001")
 if not versionCheck and sem.IsVariableDefined("warningVersion") == 0:
 	runScript = sem.YesNoBox("\n".join(["WARNING: You are using a version of SerialEM that does not support all PACEtomo features. It is recommended to update to the latest SerialEM beta version!", "", "Do you want to run PACEtomo regardless?"]))

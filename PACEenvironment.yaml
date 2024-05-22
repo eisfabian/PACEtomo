@@ -5,7 +5,8 @@ dependencies:
  - python=3.9
  - scipy=1.12.0
  - scikit-image=0.22.0
+ - matplotlib>=3.5
  - mrcfile=1.5.0
  - pip
  - pip:
-   - dearpygui==1.11.1
+   - dearpygui>=1.10

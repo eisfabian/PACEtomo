@@ -6,8 +6,8 @@
 #               More information at http://github.com/eisfabian/PACEtomo
 # Author:       Fabian Eisenstein
 # Created:      2021/04/16
-# Revision:     v1.8
-# Last Change:  2024/05/17: added warnings for frame folder
+# Revision:     v1.8.1
+# Last Change:  2024/06/07: fixed crash when getting frame path from non-frame saving cameras
 # ===================================================================
 
 ############ SETTINGS ############ 
@@ -52,6 +52,8 @@ viewAli         = False     # adds an alignment step with a View image if it was
 
 # Advanced settings
 sortByTilt      = True      # sorts tilt series by tilt angle after acquisition is completed (takes additional time), requires mrcfile module
+binFinalStack   = 1         # bin factor for final saved stack after acquisition (unbinned stack will be deleted to save storage space)
+delFinalStack   = False     # delete final tilt series stacks (only keeps frames for reconstruction to save storage space) 
 doCtfFind       = False     # set to False to skip CTFfind estimation (only necessary if it causes crashes => if it does crash, SerialEM will output some tourbleshoot data that you should send to David!) 
 doCtfPlotter    = True      # runs ctfplotter instead of CTFfind, needs standalone version of 3Dmod on PATH
 fitLimit        = 30        # refineGeo: minimum resolution [Angstroms] needed for CTF fit to be considered for refineGeo
@@ -89,7 +91,7 @@ import numpy as np
 from scipy import optimize
 if sortByTilt: import mrcfile
 
-versionPACE = "1.8dev"
+versionPACE = "1.8.1"
 versionCheck = sem.IsVersionAtLeast("40100", "20231001")
 if not versionCheck and sem.IsVariableDefined("warningVersion") == 0:
     runScript = sem.YesNoBox("\n".join(["WARNING: You are using a version of SerialEM that does not support all PACEtomo features. It is recommended to update to the latest SerialEM beta version!", "", "Do you want to run PACEtomo regardless?"]))
@@ -280,6 +282,58 @@ def sortTS(ts_name):
     else:
         log("WARNING: " + ts_name + ".mdoc file could not be found! Tilt series stack was not sorted!")
 
+def bin2d(img, factor):
+    # Add third dimension if img is not stack
+    if img.ndim == 2:
+        img = np.expand_dims(img, 0)
+    # Only bin in 2D and keep stack size
+    factors = (1, factor, factor)
+    # Calculate the new dimensions after cropping to allow even binning
+    new_shape = tuple((dim // factor) * factor for dim, factor in zip(img.shape, factors))
+    # Center crop the array to the new dimensions
+    slices = tuple(slice((dim - new_dim) // 2, (dim + new_dim) // 2) for dim, new_dim in zip(img.shape, new_shape))
+    cropped_img = img[slices]
+    # Determine the new shape for reshaping
+    reshaped_shape = np.array([(dim // factor, factor) for dim, factor in zip(cropped_img.shape, factors)]).reshape(-1)
+    # Reshape the array
+    reshaped_img = cropped_img.reshape(reshaped_shape)
+    # Calculate the mean along the new axes
+    for i in range(-1, -cropped_img.ndim-1, -1):
+        reshaped_img = reshaped_img.mean(axis=i)
+    # Remove added dimension
+    if reshaped_img.shape[0] == 1:
+        reshaped_img = reshaped_img[0, :, :]
+    return reshaped_img
+
+def binStack(ts_name, factor):
+    factor = int(factor)
+    log("Binning " + ts_name + " by " + str(factor) + "...")
+    if checkFrames(ts_name):
+        # Check if tilt stack file exists
+        if os.path.exists(os.path.join(curDir, ts_name)):
+            # Open mrc file
+            with mrcfile.open(os.path.join(curDir, ts_name), "r+") as mrc:
+                stack = mrc.data
+                voxel_size = mrc.voxel_size.x
+                # Bin stack by factor
+                stack = bin2d(stack, factor)
+                # Save new stack in same file
+                mrc.set_data(stack.astype(np.int16))
+                # Update header pixel size
+                mrc.voxel_size = voxel_size * factor
+            log("NOTE: " + ts_name + " was binned by " + str(factor) + ". Please use saved frames to regenerate the unbinned tilt series.")
+        else:
+            log("WARNING: " + ts_name + " file could not be found!")
+
+def checkFrames(ts_name):
+    # Make sure frames were saved
+    frame_file, frame_dir, frame_name = sem.ReportLastFrameFile()
+    if len(glob.glob(os.path.join(frame_dir, os.path.splitext(ts_name)[0] + "*"))) > 0:
+        return True
+    else:
+        log("WARNING: Frames for " + ts_name + " could not be found. Keeping tilt stack unprocessed.")
+        return False
+
 def log(text, color=0, style=0):
     if text.startswith("NOTE:"):
         color = 4
@@ -391,6 +445,9 @@ def Tilt(tilt):
             sem.ReadFile(position[pos][pn]["sec"], "O")                    # read last image of position for AlignTo
         else:
             if os.path.exists(os.path.join(curDir, targets[pos]["tsfile"])):
+                # Close all files incase file to be renamed is currently open
+                while sem.ReportFileNumber() > 0:
+                    sem.CloseFile()
                 os.replace(os.path.join(curDir, targets[pos]["tsfile"]), os.path.join(curDir, targets[pos]["tsfile"]) + "~")
                 log("WARNING: Tilt series file already exists. Existing file was renamed.")
             sem.OpenNewFile(targets[pos]["tsfile"])
@@ -699,11 +756,15 @@ else:
     sem.Exit()
 
 # Check if frame folder is set reasonably
-framePath = sem.ReportFrameSavingPath()
+try:
+    framePath = sem.ReportFrameSavingPath()
+except:
+    log("WARNING: Camera frame path could not be obtained for your camera.")
+    framePath = "NONE"
 framePar = os.path.abspath(os.path.join(framePath, os.pardir))
 curPar = os.path.abspath(os.path.join(curDir, os.pardir))
 if (framePath == "NONE" or (framePath not in curDir and curDir not in framePath and framePar not in curDir and curPar not in framePath)) and sem.IsVariableDefined("warningFramePath") == 0:
-    sem.Pause("WARNING: Current frame path (" + framePath + ") does not seem plausible.")
+    sem.Pause("WARNING: Current frame path (" + framePath + ") does not seem plausible or camera does not save frames.")
     sem.SetPersistentVar("warningFramePath", "")
 
 sem.SaveLogOpenNew(navNote.split("_tgts")[0])
@@ -914,7 +975,7 @@ if not recover:
     sem.AlignTo("O")
     sem.GoToLowDoseArea("R")
 
-    if not tgtPattern:
+    if not tgtPattern and previewAli:
         sem.LoadOtherMap(navID, "O")                                # preview ali before first tilt image is taken
         sem.AcquireToMatchBuffer("O")                                # in case view image was saved for tracking target
         sem.AlignTo("O")
@@ -947,7 +1008,7 @@ if not recover:
         log("Target " + str(i + 1) + "...")
         skip = False
         if "skip" in tgt.keys() and tgt["skip"] == "True":
-            log("WARNING: Target [" + str(i).zfill(3) + "] was set to be skipped.")
+            log("WARNING: Target [" + str(i + 1).zfill(3) + "] was set to be skipped.")
             skip = True
         if "SSX" not in tgt.keys() and "stageX" in tgt.keys():                    # if SS coords are missing but stage coords are present, calc SS coords
             tgt["SSX"], tgt["SSY"] = s2ssMatrix @ np.array([float(tgt["stageX"]) - float(targets[0]["stageX"]), float(tgt["stageY"]) - float(targets[0]["stageY"])])
@@ -1178,9 +1239,19 @@ sem.SetImageShift(0, 0)
 sem.CloseFile()
 updateTargets(runFileName, targets)
 
-if sortByTilt:
+# Format final tilt stacks
+if delFinalStack:
     for target in targets:
-        sortTS(target["tsfile"])
+        if checkFrames(target["tsfile"]):
+            os.remove(target["tsfile"])
+            log("NOTE: " + target["tsfile"] + " was deleted. Please use saved frames to generate the tilt series.")
+else:
+    if sortByTilt or binFinalStack > 1:
+        for target in targets:
+            if sortByTilt:
+                sortTS(target["tsfile"])
+            if binFinalStack > 1:
+                binStack(target["tsfile"], binFinalStack)
 
 totalTime = round(sem.ReportClock() / 60, 1)
 perTime = round(totalTime / len(position), 1)

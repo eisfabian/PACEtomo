@@ -5,8 +5,8 @@
 #               More information at http://github.com/eisfabian/PACEtomo
 # Author:       Fabian Eisenstein
 # Created:      2021/04/19
-# Revision:     v1.8
-# Last Change:  2025/05/17: added warning for change in tgts dir
+# Revision:     v1.8.1
+# Last Change:  2024/06/13: fixed wrong stage coords after resetting image shift
 # ===================================================================
 
 ############ SETTINGS ############ 
@@ -818,6 +818,7 @@ def gui(targetFile):
 
     def checkForMap():
         global mapLabel
+        log("Saving navigator file...")
         sem.SaveNavigator()                                        # parse nav file to get polygon coords
         navFile = sem.ReportNavFile()
         navHeader, navItems = parseNav(navFile)
@@ -994,6 +995,7 @@ def gui(targetFile):
         log("NOTE: Copied tgts file to " + str(copied) + " navigator points!")
 
     def saveFile(ask=True):                                            # save targets to file
+        global settingsOrig
         if ask:
             confirm = tk.messagebox.askyesno(title="Confirmation", message="\n".join(["Save changes?", "", "Do you want to save changes and overwrite your targets file?"]))
             if not confirm:
@@ -1009,6 +1011,7 @@ def gui(targetFile):
                     targetsTemp[i].pop("tgtfile")                        # don't save tgtfile to tgts file if False
         os.replace(targetFile, targetFile + "~")                            # make backup
         writeTargets(targetFile, targetsTemp, geoPoints, savedRun, resume, settings)
+        settingsOrig = copy.deepcopy(settings)
         log("NOTE: Changes to targets file were saved!")
 
     def resetOrder():                                            # restore targets array as read from file
@@ -1520,6 +1523,8 @@ if editTgts == 0:
             sem.Search()
         else:
             sem.V()
+            if guidance:
+                sem.OKBox("\n".join(["The first target you select will be the tracking target!","","NOTE: This target will have larger tracking errors than the other targets and should have enough contrast to be tracked confidently."]))
         drag()
 
     targetNo += 1
@@ -1529,6 +1534,7 @@ if editTgts == 0:
     sem.GoToLowDoseArea("R")
     ISX0, ISY0, *_ = sem.ReportImageShift()
     SSX0, SSY0 = sem.ReportSpecimenShift()
+
     stageX, stageY, stageZ = sem.ReportStageXYZ()
     target["stageX"], target["stageY"] = sem.AdjustStagePosForNav(stageX, stageY, ISX0, ISY0)
     target["SSX"], target["SSY"] = [0, 0]
@@ -1541,6 +1547,18 @@ if editTgts == 0:
             beamR = sem.ReportIlluminatedArea() * 100 / 2
         if drawBeam:
             beamPolygons.append(drawBeamPolygon(target["stageX"], target["stageY"], stageZ, beamR, maxTilt))
+
+    # Reset image shift to tracking target if above threshold
+    image_shift_threshold = 0.5 # microns
+    if SSX0 > image_shift_threshold or SSY0 > image_shift_threshold:
+        log("NOTE: Resetting image shift for tracking target because image shift was above threshold!")
+        sem.ResetImageShift()
+        sem.L()
+        sem.AlignTo("B")
+        stageX, stageY, stageZ = sem.ReportStageXYZ()
+        ISX0, ISY0, *_ = sem.ReportImageShift()
+        SSX0, SSY0 = sem.ReportSpecimenShift()
+        log("Remaining image shift in microns is: " + str(round(SSX0, 2)) + "," + str(round(SSY0, 2)))
 
     # make view map tor realign to item
     sem.SetCameraArea("V", "F")

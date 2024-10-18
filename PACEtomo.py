@@ -6,8 +6,8 @@
 #               More information at http://github.com/eisfabian/PACEtomo
 # Author:       Fabian Eisenstein
 # Created:      2021/04/16
-# Revision:     v1.8.1
-# Last Change:  2024/06/07: fixed crash when getting frame path from non-frame saving cameras
+# Revision:     v1.9.0
+# Last Change:  2024/10/18: temp fixed numpy2 breaking run files
 # ===================================================================
 
 ############ SETTINGS ############ 
@@ -22,8 +22,8 @@ maxDefocus      = -5        # maximum defocus [microns] of target range (high de
 stepDefocus     = 0.5       # step [microns] between target defoci (between TS)
 
 focusSlope      = 0.0       # [DEPRECATED] empirical linear focus correction [microns per degree] (obtained by linear regression of CTF fitted defoci over tilt series; microscope stage dependent)
-delayIS         = 0.5       # delay [s] between applying image shift and Record
-delayTilt       = 0.5       # delay [s] after stage tilt
+delayIS         = 0.3       # delay [s] between applying image shift and Record
+delayTilt       = 0.3       # delay [s] after stage tilt
 zeroExpTime     = 0         # set to exposure time [s] used for start tilt image, if 0: use same exposure time for all tilt images
 zeroDefocus	    = 0 		# set to defocus [microns] used for start tilt image, if 0: use same defocus for all tilt images
 
@@ -50,12 +50,25 @@ addAF           = False     # does autofocus at the start of every tilt group, i
 previewAli      = True      # adds initial dose, but makes sure start tilt image is on target (uses view image and aligns to buffer P if alignToP == True)
 viewAli         = False     # adds an alignment step with a View image if it was saved during the target selection (only if previewAli is activated)
 
-# Advanced settings
+# Output settings
 sortByTilt      = True      # sorts tilt series by tilt angle after acquisition is completed (takes additional time), requires mrcfile module
 binFinalStack   = 1         # bin factor for final saved stack after acquisition (unbinned stack will be deleted to save storage space)
 delFinalStack   = False     # delete final tilt series stacks (only keeps frames for reconstruction to save storage space) 
-doCtfFind       = False     # set to False to skip CTFfind estimation (only necessary if it causes crashes => if it does crash, SerialEM will output some tourbleshoot data that you should send to David!) 
-doCtfPlotter    = True      # runs ctfplotter instead of CTFfind, needs standalone version of 3Dmod on PATH
+doCtfFind       = False     # set to False to skip CTFfind estimation (only necessary if it causes crashes => if it does crash, SerialEM will output some troubleshoot data that you should send to David!) 
+doCtfPlotter    = True      # runs ctfplotter instead of CTFfind, needs standalone version of 3dmod on PATH
+extendedMdoc    = True      # saves additional info to .mdoc file
+
+# Hardware settings
+slowTilt        = False     # do backlash step for all tilt angles, on bad stages large tilt steps are less accurate
+taOffsetPos     = 0         # additional tilt axis offset values [microns] applied to calculations for positive and...
+taOffsetNeg     = 0         # ...negative branch of the tilt series (possibly useful for side-entry holder systems)
+checkDewar      = True      # check if dewars are refilling before every acquisition
+cryoARM         = False     # if you use a JEOL cryoARM TEM, this will keep the dewar refilling in sync
+coldFEG         = False     # if you use a cold FEG, this will flash the gun whenever the dewars are being refilled
+flashInterval   = -1        # time in hours between cold FEG flashes, -1: flash only during dewar refill (interval is ignored on Krios, uses FlashingAdvised function instead)
+slitInterval    = 0         # time in minutes between centering the energy filter slit using RefineZLP, ONLY works with tgtPattern (needs pattern vectors to find good position for alignment)
+
+# Advanced settings
 fitLimit        = 30        # refineGeo: minimum resolution [Angstroms] needed for CTF fit to be considered for refineGeo
 parabolTh       = 9         # refineGeo: minimum number of passable CtfFind values to fit paraboloid instead of plane 
 imageShiftLimit = 20        # maximum image shift [microns] SerialEM is allowed to apply (this is a SerialEM property entry, default is 15 microns)
@@ -63,36 +76,34 @@ dataPoints      = 4         # number of recent specimen shift data points used f
 alignLimit      = 0.5       # maximum shift [microns] allowed for record tracking between tilts, should reduce loss of target in case of low contrast (not applied for tracking TS); also the threshold to take a second tracking image when using trackTwice
 minCounts       = 0         # minimum mean counts per second of record image (if set > 0, tilt series branch will be aborted if mean counts are not sufficient)
 ignoreNegStart  = True      # ignore first shift on 2nd branch, which is usually very large on bad stages
-slowTilt        = False     # do backlash step for all tilt angles, on bad stages large tilt steps are less accurate
-taOffsetPos     = 0         # additional tilt axis offset values [microns] applied to calculations for postitive and...
-taOffsetNeg     = 0         # ...negative branch of the tilt series (possibly useful for side-entry holder systems)
-extendedMdoc    = True      # saves additional info to .mdoc file
-checkDewar      = True      # check if dewars are refilling before every acquisition
-cryoARM         = False     # if you use a JEOL cryoARM TEM, this will keep the dewar refilling in sync
-coldFEG         = False     # if you use a cold FEG, this will flash the gun whenever the dewars are being refilled
-flashInterval   = -1        # time in hours between cold FEG flashes, -1: flash only during dewar refill (interval is ignored on Krios, uses FlashingAdvised function instead)
-slitInterval    = 0         # time in minutes between centering the energy filder slit using RefineZLP, ONLY works with tgtPattern (needs pattern vectors to find good position for alignment)
+refFromPreview  = False     # Makes temporary reference from Preview image collected during previewAli for use with first Record image
+noZeroRecAli    = False     # Skip alignment of first tilt image to reference       
 
 # Target montage settings
-tgtMontage      = False     # collect montage for each target using the shorter camera length (e.g. for square aperture montage tomography)
+tgtMontage      = False     # collect montage for each target using the shorter camera dimension (e.g. for square aperture montage tomography)
 tgtMntSize      = 1         # size of montage pattern (1: 3x3, 2: 5x5, 3: 7x7, ...)
-tgtMntOverlap   = 0.05      # montage tile overlap as fraction of shorter camera length
+tgtMntOverlap   = 0.05      # montage tile overlap as fraction of shorter camera dimension
+tgtMntXOffset   = 0         # max offset [microns] applied along tilt axis throughout tilt series (+tgtMntXOffset is reached at maxTilt, -tgtMntXOffset at minTilt)
 tgtMntFocusCor  = False     # do focus compensation for tiles of montage
 tgtTrackMnt     = False     # set to True if you also want the tracking target to be a montage
 
+debug           = False     # Enables additional output for a few processes (e.g. cross-correlation for all image alignments)
+
 ########## END SETTINGS ########## 
+
+versionPACE = "1.9.0"
 
 import serialem as sem
 import os
 import copy
+import struct
 from datetime import datetime
 import glob
 import numpy as np
 from scipy import optimize
 if sortByTilt: import mrcfile
 
-versionPACE = "1.8.1"
-versionCheck = sem.IsVersionAtLeast("40100", "20231001")
+versionCheck = sem.IsVersionAtLeast("40200", "20240119")
 if not versionCheck and sem.IsVariableDefined("warningVersion") == 0:
     runScript = sem.YesNoBox("\n".join(["WARNING: You are using a version of SerialEM that does not support all PACEtomo features. It is recommended to update to the latest SerialEM beta version!", "", "Do you want to run PACEtomo regardless?"]))
     if not runScript:
@@ -106,9 +117,9 @@ def checkFilling():
     filling = sem.AreDewarsFilling()
     if filling >= 1:
         log(datetime.now().strftime("%d.%m.%Y %H:%M:%S") + ": Dewars are filling...", color=4)
-        if cryoARM:                                        # make sure both tanks are being filled on cryoARM
+        if cryoARM:                                                                             # make sure both tanks are being filled on cryoARM
             sem.LongOperation("RS", "0", "RT", "0")
-        if coldFEG:                                        # flash gun while dewars refill
+        if coldFEG:                                                                             # flash gun while dewars refill
             sem.LongOperation("FF", "0")
     while filling >= 1:
         log("Dewars are still filling...")
@@ -116,7 +127,7 @@ def checkFilling():
         filling = sem.AreDewarsFilling()
 
 def checkColdFEG():
-    if not cryoARM:                                            # Routine for Krios CFEG with Advanced scripting >4
+    if not cryoARM:                                                                             # Routine for Krios CFEG with Advanced scripting >4
         flashLow = 0
         flashHigh = sem.IsFEGFlashingAdvised(1)
         if flashHigh == 1:
@@ -126,9 +137,9 @@ def checkColdFEG():
         if flashLow == 1 or flashHigh ==1:
             sem.LongOperation("FF", "0")
     else:
-            sem.LongOperation("FF", str(flashInterval))    
+            sem.LongOperation("FF", str(flashInterval))
 
-def checkSlit(vec, size, tilt, pn):                                    # check ZLP in hole outside of pattern along tilt axis
+def checkSlit(vec, size, tilt, pn):                                                             # check ZLP in hole outside of pattern along tilt axis
     global lastSlitCheck
     log("Refining ZLP...", style=1)
     sem.SetImageShift(position[0][pn]["ISXset"], position[0][pn]["ISYset"])
@@ -138,6 +149,10 @@ def checkSlit(vec, size, tilt, pn):                                    # check Z
     sem.RefineZLP()
     sem.SetImageShift(position[0][pn]["ISXset"], position[0][pn]["ISYset"])
     lastSlitCheck = sem.ReportClock()
+
+def checkValves():
+    if not int(sem.ReportColumnOrGunValve()):
+        sem.SetColumndOrGunValve(1)
 
 def parseTargets(targetFile):
     targets = []
@@ -150,10 +165,16 @@ def parseTargets(targetFile):
         if col[0] == "": continue
         if line.startswith("_set") and len(col) == 4:
             if col[1] in globals():
-                log("WARNING: Read setting from tgts file and overwrite: " + col[1] + " = " + col[3])
+                log(f"WARNING: Read setting from tgts file and overwrite: {col[1]} = {col[3]}")
                 globals()[col[1]] = float(col[3])
             else:
-                log("WARNING: Attempted to overwrite " + col[1] + " but variable does not exist!")
+                log(f"WARNING: Attempted to overwrite {col[1]} but variable does not exist!")
+        elif line.startswith("_bset") and len(col) == 4:
+            if col[1] in globals():
+                log(f"WARNING: Read setting from tgts file and overwrite: {col[1]} = {bool(int(float(col[3])))}")
+                globals()[col[1]] = bool(int(float(col[3])))
+            else:
+                log(f"WARNING: Attempted to overwrite {col[1]} but variable does not exist!")                
         elif line.startswith("_spos"):
             resume["sec"] = int(col[2].split(",")[0])
             resume["pos"] = int(col[2].split(",")[1])
@@ -195,10 +216,10 @@ def updateTargets(fileName, targets, position=[], sec=0, pos=0):
         if position != []:
             output += "_pbr" + "\n"
             for key in position[pos][1].keys():
-                output += key + " = " + str(position[pos][1][key]).strip("[]").replace(" ","") + "\n"
+                output += key + " = " + str(position[pos][1][key]).strip("[]").replace("np.float64(", "").replace(")", "").replace(" ","") + "\n"   # temp fix for numpy>=2.0 changing str output for list of numbers to include np.float64()
             output += "_nbr" + "\n"
             for key in position[pos][2].keys():
-                output += key + " = " + str(position[pos][2][key]).strip("[]").replace(" ","") + "\n"        
+                output += key + " = " + str(position[pos][2][key]).strip("[]").replace("np.float64(", "").replace(")", "").replace(" ","") + "\n"   # temp fix for numpy>=2.0 changing str output for list of numbers to include np.float64()     
         output += "\n"
     with open(fileName, "w") as f:
         f.write(output)
@@ -233,7 +254,7 @@ def parseMdoc(mdocFile):
             newItem[col[0]] = [val for val in col[2:]]
         else:
             header.append(line)
-    if "ZValue" in newItem.keys():    #append last target
+    if "ZValue" in newItem.keys():                                                              # append last target
         items.append(newItem)
     return header, items
 
@@ -242,7 +263,7 @@ def writeMdoc(header, items, filename):
     for line in header:
         if line.startswith("[T"):
             content += os.linesep
-        content += line
+        content += line + os.linesep
     content += os.linesep
     for i, item in enumerate(items):
         content += "[ZValue = " + str(i) + "]" + os.linesep
@@ -258,29 +279,83 @@ def writeMdoc(header, items, filename):
         f.write(content)
     return
 
+def getExtendedHeader(filename):
+    with open(filename, "rb") as mrc_file:
+        mrc = mrc_file.read(4096)
+
+    # MRC header format SERI (SERI is not covered by mrcfile)
+    format = ""
+    for char in struct.iter_unpack("s", mrc[104:108]):
+        format += char[0].decode("utf-8")
+    log(f"DEBUG: MRC format: {format}")
+
+    if format == "SERI":
+        # Get number of sections
+        section_number = struct.unpack("i", mrc[8: 12])[0]
+        log(f"DEBUG: Number of sections: {section_number}")
+
+        # Get bytes per section
+        bytes_per_section = struct.unpack("h", mrc[128: 130])[0]
+        log(f"DEBUG: Bytes per section: {bytes_per_section}")
+
+        # Bitflags
+        bitflags = struct.unpack("h", mrc[130: 132])[0]
+        log(f"DEBUG: Bitflags: {bitflags}")
+        """
+        https://bio3d.colorado.edu/imod/doc/mrc_format.txt
+        1 = Tilt angle in degrees * 100  (2 bytes)
+        2 = X, Y, Z piece coordinates for montage (6 bytes)
+        4 = X, Y stage position in microns * 25   (4 bytes)
+        8 = Magnification / 100 (2 bytes)
+        16 = Intensity * 25000  (2 bytes)
+        32 = Exposure dose in e-/A2, a float in 4 bytes
+        128, 512: Reserved for 4-byte items
+        64, 256, 1024: Reserved for 2-byte items
+        If the number of bytes implied by these flags does
+        not add up to the value in nint, then nint and nreal
+        are interpreted as ints and reals per section
+        """
+
+        section_data = []
+        for i in range(1024, 1024 + bytes_per_section * section_number, bytes_per_section):     # extended header starts at byte 1024
+            section_data.append(mrc[i:i + bytes_per_section])
+
+        return section_data
+    
+    return None
+
+def writeExtendedHeader(filename, section_data):
+    with open(filename, "r+b") as mrc_file:
+        mrc_file.seek(1024)
+        mrc_file.write(b"".join(section_data))
+
 def sortTS(ts_name):
-    log("Sorting " + ts_name + " by tilt angle...")
+    log(f"Sorting {ts_name} by tilt angle...")
     if os.path.exists(os.path.join(curDir, ts_name + ".mdoc")):
         # Read mdoc file
         header, tilts = parseMdoc(os.path.join(curDir, ts_name + ".mdoc"))
         # Make list of tilt angles
         tiltAngles = [float(tilt["TiltAngle"][0]) for tilt in tilts]
+        # Get extended header data
+        ext_header_sections = getExtendedHeader(os.path.join(curDir, ts_name))
         # Open mrc file
         with mrcfile.open(os.path.join(curDir, ts_name), "r+") as mrc:
             stack = mrc.data
             # Sort tilts and stack according to tilt angle
-            zippedTilts = sorted(zip(tiltAngles, tilts, stack))
-            tiltAngles, tilts, stack = zip(*zippedTilts)
+            zippedTilts = sorted(zip(tiltAngles, tilts, stack, ext_header_sections))
+            tiltAngles, tilts, stack, ext_header_sections = zip(*zippedTilts)
             stack = np.array(stack)
             # Save new stack in same file
             mrc.set_data(stack)
+        # Update extended header
+        writeExtendedHeader(os.path.join(curDir, ts_name), ext_header_sections)
         # Rename original mdoc
         os.rename(os.path.join(curDir, ts_name + ".mdoc"), os.path.join(curDir, os.path.splitext(ts_name)[0] + "_unsorted.mrc.mdoc"))
         # Save sorted mdoc
         writeMdoc(header, tilts, os.path.join(curDir, ts_name + ".mdoc"))
-        log("NOTE: " + ts_name + " was sorted by tilt angle!")
+        log(f"NOTE: {ts_name} was sorted by tilt angle!")
     else:
-        log("WARNING: " + ts_name + ".mdoc file could not be found! Tilt series stack was not sorted!")
+        log(f"WARNING: {ts_name}.mdoc file could not be found! Tilt series stack was not sorted!")
 
 def bin2d(img, factor):
     # Add third dimension if img is not stack
@@ -307,7 +382,7 @@ def bin2d(img, factor):
 
 def binStack(ts_name, factor):
     factor = int(factor)
-    log("Binning " + ts_name + " by " + str(factor) + "...")
+    log(f"Binning {ts_name} by {factor}...")
     if checkFrames(ts_name):
         # Check if tilt stack file exists
         if os.path.exists(os.path.join(curDir, ts_name)):
@@ -321,36 +396,43 @@ def binStack(ts_name, factor):
                 mrc.set_data(stack.astype(np.int16))
                 # Update header pixel size
                 mrc.voxel_size = voxel_size * factor
-            log("NOTE: " + ts_name + " was binned by " + str(factor) + ". Please use saved frames to regenerate the unbinned tilt series.")
+            log(f"NOTE: {ts_name} was binned by {factor}. Please use saved frames to regenerate the unbinned tilt series.")
         else:
-            log("WARNING: " + ts_name + " file could not be found!")
+            log(f"WARNING: {ts_name} file could not be found!")
 
 def checkFrames(ts_name):
-    # Make sure frames were saved
-    frame_file, frame_dir, frame_name = sem.ReportLastFrameFile()
-    if len(glob.glob(os.path.join(frame_dir, os.path.splitext(ts_name)[0] + "*"))) > 0:
-        return True
-    else:
-        log("WARNING: Frames for " + ts_name + " could not be found. Keeping tilt stack unprocessed.")
-        return False
+    # Check if frame saving is available by checking if warning was accepted by user at start of script
+    if sem.IsVariableDefined("warningFramePath") == 0:
+        # Make sure frames were saved
+        frame_file, frame_dir, frame_name = sem.ReportLastFrameFile()
+        if checkFrames and len(glob.glob(os.path.join(frame_dir, os.path.splitext(ts_name)[0] + "*"))) > 0:
+            return True
+
+    log(f"WARNING: Frames for {ts_name} could not be found. Keeping tilt stack unprocessed.")
+    return False
 
 def log(text, color=0, style=0):
+    if text.startswith("DEBUG:") and not debug:
+        return
     if text.startswith("NOTE:"):
         color = 4
     elif text.startswith("WARNING:"):
         color = 5
     elif text.startswith("ERROR:"):
-        color = 3
+        color = 2
         style = 1 
+    elif text.startswith("DEBUG:"):
+        color = 1
+
     if sem.IsVersionAtLeast("40200", "20240205"):
         sem.SetNextLogOutputStyle(style, color)
-    sem.Echo(text)
+    sem.EchoBreakLines(text)
 
 def Tilt(tilt):
-    def calcSSChange(x, z0):                                    # x = array(tilt, n0) => needs to be one array for optimize.curve_fit()
+    def calcSSChange(x, z0):                                                                    # x = array(tilt, n0) => needs to be one array for optimize.curve_fit()
         return x[1] * (np.cos(np.radians(x[0])) - np.cos(np.radians(x[0] - increment))) - z0 * (np.sin(np.radians(x[0])) - np.sin(np.radians(x[0] - increment)))
 
-    def calcFocusChange(x, z0):                                    # x = array(tilt, n0) => needs to be one array for optimize.curve_fit()
+    def calcFocusChange(x, z0):                                                                 # x = array(tilt, n0) => needs to be one array for optimize.curve_fit()
         return z0 * (np.cos(np.radians(x[0])) - np.cos(np.radians(x[0] - increment))) + x[1] * (np.sin(np.radians(x[0])) - np.sin(np.radians(x[0] - increment)))
 
     def setTrack():
@@ -367,7 +449,7 @@ def Tilt(tilt):
                 origMag, *_ = sem.ReportMag()
                 sem.UpdateLowDoseParams("R")
             attempt = 0
-            while sem.ReportMag()[0] == origMag:                        # has to be checked, because Rec is sometimes not updated (JEOL)
+            while sem.ReportMag()[0] == origMag:                                                # has to be checked, because Rec is sometimes not updated (JEOL)
                 if attempt >= 10:
                     log("WARNING: Magnification could not be changed. Continuing with the same magnification for all tilt series.")
                     trackMag = 0
@@ -383,25 +465,39 @@ def Tilt(tilt):
         if trackExpTime > 0:
             sem.RestoreCameraSet("R")
         if trackMag > 0:
-            while sem.ReportMag()[0] != origMag:                        # has to be checked, because Rec is sometimes not updated (JEOL)
+            while sem.ReportMag()[0] != origMag:                                                # has to be checked, because Rec is sometimes not updated (JEOL)
                 sem.SetMag(origMag)
                 sem.GoToLowDoseArea("R")
 
-    global recover #, trackMag, origMag
+    global recover
 
-    sem.TiltTo(tilt)
+    # Tilt if within tilt range, skip branch if not
+    if -tiltLimit <= tilt <= tiltLimit:
+        if tilt != startTilt:
+            sem.TiltTo(tilt)
+        skip_branch = False
+    else:
+        log(f"WARNING: Tilt angle [{tilt} degrees] could not be reached. This branch of the tilt series will be aborted.")
+        skip_branch = True
+
     if tilt < startTilt:
         increment = -step
-        if tilt - step > -tiltLimit:
+        if tilt - step >= -tiltLimit:
             sem.TiltBy(-step)
             sem.TiltTo(tilt)
         pn = 2
     else:
-        if slowTilt and tilt > startTilt:                            # on bad stages, better to do backlash as well to enhance accuracy
+        if slowTilt and startTilt < tilt <= tiltLimit:                                                       # on bad stages, better to do backlash as well to enhance accuracy
             sem.TiltBy(-step)
             sem.TiltTo(tilt)
         increment = step
         pn = 1
+
+    # After branch was determined, set branch to be skipped and return
+    if skip_branch:
+        for pos in range(len(position)):
+            position[pos][pn]["skip"] = True
+        return
 
     sem.Delay(delayTilt, "s")
     realTilt = float(sem.ReportTiltAngle())
@@ -412,19 +508,19 @@ def Tilt(tilt):
     if recover:
         # preview align to last tracking TS
         sem.OpenOldFile(targets[0]["tsfile"])
-        sem.ReadFile(position[0][pn]["sec"], "O")                        # read last image of position for AlignTo
+        sem.ReadFile(position[0][pn]["sec"], "O")                                               # read last image of position for AlignTo
         sem.SetDefocus(position[0][pn]["focus"])
         sem.SetImageShift(position[0][pn]["ISXset"], position[0][pn]["ISYset"])
-        SSchange = 0                                         # needs to bedefined for setTrack
+        SSchange = 0                                                                            # needs to be defined for setTrack
         setTrack()
         if checkDewar: checkFilling()
         sem.L()
-        sem.AlignTo("O")
+        sem.AlignTo("O", 0, 0, 0, int(debug))
         bufISX, bufISY = sem.ReportISforBufferShift()
-        sem.ImageShiftByUnits(position[0][pn]["ISXali"], position[0][pn]["ISYali"])        # remove accumulated buffer shifts to calculate alignment to initial startTilt image
+        sem.ImageShiftByUnits(position[0][pn]["ISXali"], position[0][pn]["ISYali"])             # remove accumulated buffer shifts to calculate alignment to initial startTilt image
         position[0][pn]["ISXset"], position[0][pn]["ISYset"], *_ = sem.ReportImageShift()
         for i in range(1, len(position)):
-            position[i][pn]["ISXset"] += bufISX + position[0][pn]["ISXali"]            # apply accumulated (stage dependent) buffer shifts of tracking TS to all targets
+            position[i][pn]["ISXset"] += bufISX + position[0][pn]["ISXali"]                     # apply accumulated (stage dependent) buffer shifts of tracking TS to all targets
             position[i][pn]["ISYset"] += bufISY + position[0][pn]["ISYali"]
         resetTrack()
         sem.CloseFile()
@@ -434,15 +530,25 @@ def Tilt(tilt):
         posStart = 0
 
     for pos in range(posStart, len(position)):
-        log("")
-        log("Target " + str(pos + 1) + " / " + str(len(position)) + ":", style=1)
+        log(f"\nTarget {pos + 1} / {len(position)}:", style=1)
         sem.SetStatusLine(2, "Target: " + str(pos + 1) + " / " + str(len(position)))
         if pos != 0 and position[pos][pn]["skip"]: 
-            log("[" + str(pos + 1) + "] was skipped on this branch.")
+            log(f"[{pos + 1}] was skipped on this branch.")
             continue
         if tilt != startTilt:
-            sem.OpenOldFile(targets[pos]["tsfile"])
-            sem.ReadFile(position[pos][pn]["sec"], "O")                    # read last image of position for AlignTo
+            # Allow for multiple attempts to open file to prevent crash when file is being copied during access
+            success = False
+            while not success:
+                try:
+                    sem.NoMessageBoxOnError(1)
+                    sem.OpenOldFile(targets[pos]["tsfile"])
+                    success = True
+                except:
+                    log(f"WARNING: File [{os.path.basename(targets[pos]['tsfile'])}] could not be opened. Trying again...")
+                    sem.Delay(5, "s")
+                finally:
+                    sem.NoMessageBoxOnError(0)
+            sem.ReadFile(position[pos][pn]["sec"], "O")                                         # read last image of position for AlignTo
         else:
             if os.path.exists(os.path.join(curDir, targets[pos]["tsfile"])):
                 # Close all files incase file to be renamed is currently open
@@ -452,12 +558,17 @@ def Tilt(tilt):
                 log("WARNING: Tilt series file already exists. Existing file was renamed.")
             sem.OpenNewFile(targets[pos]["tsfile"])
             if not tgtPattern and "tgtfile" in targets[pos].keys():
-                sem.ReadOtherFile(0, "O", targets[pos]["tgtfile"])            # reads tgt file for first AlignTo instead
+                if refFromPreview:
+                    temp_ref = os.path.splitext(targets[pos]["tgtfile"])[0] + "_tempref.mrc"
+                    if os.path.exists(temp_ref) and "prevASX" in targets[pos].keys():
+                        sem.ReadOtherFile(0, "O", temp_ref)                                     # reads temp reference from previewAli instead
 
-        sem.AreaForCumulRecordDose(pos + 1)                            # set area to accumulate record dose (counting from 1)
+                sem.ReadOtherFile(0, "O", targets[pos]["tgtfile"])                              # reads tgt file for first AlignTo instead
+
+        sem.AreaForCumulRecordDose(pos + 1)                                                     # set area to accumulate record dose (counting from 1)
 
 ### Calculate and apply predicted shifts
-        SSchange = 0                                         # only apply changes if not startTilt
+        SSchange = 0                                                                            # only apply changes if not startTilt
         focuschange = 0
         if tilt != startTilt:
             SSchange = calcSSChange([realTilt, position[pos][pn]["n0"]], position[pos][pn]["z0"])
@@ -477,6 +588,13 @@ def Tilt(tilt):
         sem.SetImageShift(position[pos][pn]["ISXset"], position[pos][pn]["ISYset"])
         sem.ImageShiftByMicrons(0, SSchange)
 
+        # Apply sliding offset along tilt axis throughout tilt series when collecting montage tilt series
+        if tgtMontage and (tgtTrackMnt or pos != 0) and tgtMntXOffset > 0:
+            mont_offset = np.array([tgtMntXOffset * 2 * (tilt - startTilt) / (maxTilt - minTilt), 0])
+            sem.ImageShiftByMicrons(mont_offset)
+        else:
+            mont_offset = None
+
 ### Autofocus (optional) and tracking TS settings
         if pos == 0:
             if addAF and (tilt - startTilt) % (groupSize * increment) == step and abs(tilt - startTilt) > step:
@@ -491,6 +609,7 @@ def Tilt(tilt):
 
 ### Record
         if checkDewar: checkFilling()
+        checkValves()
         sem.SetFrameBaseName(0, 1, 0, os.path.splitext(targets[pos]["tsfile"])[0])              # change frame name in accordance with tilt series
         if beamTiltComp: 
             sem.AdjustBeamTiltforIS()
@@ -500,19 +619,24 @@ def Tilt(tilt):
 
         bufISXpre = 0                                                                           # only non 0 if two tracking images are taken
         bufISYpre = 0
-        if tilt != startTilt or (not tgtPattern and "tgtfile" in targets[pos].keys()):          # align to previous image if it exists 
+        if tilt != startTilt or (not tgtPattern and "tgtfile" in targets[pos].keys() and not noZeroRecAli): # align to previous image if it exists 
             if pos != 0: 
                 sem.LimitNextAutoAlign(alignLimit)                                              # gives maximum distance for AlignTo to avoid runaway tracking
-            sem.AlignTo("O")
+            sem.AlignTo("O", 0, 0, 0, int(debug))
             if trackTwice and pos == 0:                                                         # track twice if alignLimit for tracking area is surpassed
                 ASX, ASY = sem.ReportAlignShift()[4:6]
                 if abs(ASX) > alignLimit * 1000 or abs(ASY) > alignLimit * 1000:
                     bufISXpre, bufISYpre = sem.ReportISforBufferShift()                         # have to be added only to ISset but not ISali (since ali only considers the IS chain of ali images)
                     sem.R()
                     sem.S()
-                    sem.AlignTo("O")
+                    sem.AlignTo("O", 0, 0, 0, int(debug))
 
         bufISX, bufISY = sem.ReportISforBufferShift()
+
+        # Subtract montage offset if given
+        if mont_offset is not None:
+            bufISX, bufISY = np.array([bufISX, bufISY]) - ss2isMatrix @ mont_offset
+
         sem.ImageShiftByUnits(position[pos][pn]["ISXali"], position[pos][pn]["ISYali"])         # remove accumulated buffer shifts to calculate alignment to initial startTilt image
 
         if beamTiltComp: 
@@ -521,8 +645,9 @@ def Tilt(tilt):
         position[pos][pn]["ISXset"], position[pos][pn]["ISYset"], *_ = sem.ReportImageShift()
         position[pos][pn]["SSX"], position[pos][pn]["SSY"] = sem.ReportSpecimenShift()
 
+        # Collect surrounding tiles for montage tilt series
         if tgtMontage and (tgtTrackMnt or pos != 0):
-            sem.ImageShiftByUnits(-bufISX - position[pos][pn]["ISXali"], -bufISY - position[pos][pn]["ISYali"])    # reset shifts to already taken center image
+            sem.ImageShiftByUnits(-bufISX - position[pos][pn]["ISXali"], -bufISY - position[pos][pn]["ISYali"]) # reset shifts to already taken center image
             for i in range(-tgtMntSize, tgtMntSize + 1):
                 for j in range(-tgtMntSize, tgtMntSize + 1):
                     if i == j == 0: continue
@@ -532,6 +657,13 @@ def Tilt(tilt):
                         sem.OpenNewFile(os.path.splitext(targets[pos]["tsfile"])[0] + "_" + str(i) + "_" + str(j) + ".mrc")
 
                     montX, montY = (i - i * tgtMntOverlap) * min([camX, camY]), (j - j * tgtMntOverlap) * min([camX, camY])
+                    pixelShiftFromCenter = f"{montX} {montY}"
+
+                    # Apply sliding offset along tilt axis throughout tilt series
+                    if tgtMntXOffset > 0:
+                        # Adjust x shift by tgtMntXOffset [microns at max tilt] by fraction of tilt series along SSX
+                        montX, montY = np.array([montX, montY]) + ss2cMatrix @ np.array([tgtMntXOffset * 2 * (tilt - startTilt) / (maxTilt - minTilt), 0])
+
                     sem.ImageShiftByPixels(montX, montY)
                     if tgtMntFocusCor:
                         montSSX, montSSY = c2ssMatrix @ np.array([montX, montY])
@@ -548,30 +680,35 @@ def Tilt(tilt):
                     sem.R()
                     sem.S()
 
+                    mont_SSX, mont_SSY = sem.ReportSpecimenShift()
+
                     sem.ImageShiftByPixels(-montX, -montY)
                     if beamTiltComp: 
                         sem.RestoreBeamTilt()
+
+                    # Add shift to all montage tilt series mdoc files for auto stitching
+                    if extendedMdoc:
+                        sem.AddToAutodoc("PixelShiftFromCenter", pixelShiftFromCenter)
+                        sem.WriteAutodoc()
+
                     sem.CloseFile()
 
-        position[pos][pn]["focus"] -= focuscorrection                        # remove correction or it accumulates
+        position[pos][pn]["focus"] -= focuscorrection                                           # remove correction or it accumulates
 
         dose = sem.ImageConditions("A")[0]
         if dose > 0:
             sem.AccumulateRecordDose(dose)
-            #sem.AddToAutodoc("PriorRecordDose", str(position[pos][pn]["dose"]))        # write PriorRecordDose to mdoc    
             position[pos][1]["dose"] += dose
             position[pos][2]["dose"] += dose
 
-        if pos == 0:                                        # apply measured shifts of first/tracking position to other positions
+        if pos == 0:                                                                            # apply measured shifts of first/tracking position to other positions
             for i in range(1, len(position)):
-                position[i][pn]["ISXset"] += bufISX + bufISXpre + position[pos][pn]["ISXali"]    # apply accumulated (stage dependent) buffer shifts of tracking TS to all targets
+                position[i][pn]["ISXset"] += bufISX + bufISXpre + position[pos][pn]["ISXali"]   # apply accumulated (stage dependent) buffer shifts of tracking TS to all targets
                 position[i][pn]["ISYset"] += bufISY + bufISYpre + position[pos][pn]["ISYali"]
-                if tilt == startTilt:                            # also save shifts from startTilt image for second branch since it will alignTo the startTilt image
+                if tilt == startTilt:                                                           # also save shifts from startTilt image for second branch since it will alignTo the startTilt image
                     position[i][2]["ISXset"] += bufISX + bufISXpre
                     position[i][2]["ISYset"] += bufISY + bufISYpre
-                    #position[i][2]["ISXali"] += bufISX                 # NECESSARY? Can't think of a reason why...
-                    #position[i][2]["ISYali"] += bufISY
-            if tilt == startTilt:                                # do not forget about 0 position
+            if tilt == startTilt:                                                               # do not forget about 0 position
                 position[0][2]["ISXset"] += bufISX + bufISXpre
                 position[0][2]["ISYset"] += bufISY + bufISYpre
 
@@ -579,16 +716,16 @@ def Tilt(tilt):
 
         position[pos][pn]["ISXali"] += bufISX
         position[pos][pn]["ISYali"] += bufISY
-        if tilt == startTilt:                                    # save alignment of first tilt to tgt file for the second branch
+        if tilt == startTilt:                                                                   # save alignment of first tilt to tgt file for the second branch
             position[pos][2]["ISXali"] += bufISX
             position[pos][2]["ISYali"] += bufISY
 
         aErrX, aErrY = is2ssMatrix @ np.array([position[pos][pn]["ISXali"], position[pos][pn]["ISYali"]])
 
-        log("[" + str(pos + 1) + "] Prediction: y = " + str(round(SSYpred, 3)) + " microns | z = " + str(round(position[pos][pn]["focus"], 3)) + " microns | z0 = " + str(round(position[pos][pn]["z0"], 3)) + " microns")
-        log("[" + str(pos + 1) + "] Reality: y = " + str(round(position[pos][pn]["SSY"], 3)) + " microns")
-        log("[" + str(pos + 1) + "] Focus change: " + str(round(focuschange, 3)) + " microns | Focus correction: " + str(round(focuscorrection, 3)) + " microns")
-        log("[" + str(pos + 1) + "] Alignment error: x = " + str(round(aErrX * 1000)) + " nm | y = " + str(round(aErrY * 1000)) + " nm")        
+        log(f"[{pos + 1}] Prediction: y = {round(SSYpred, 3)} microns | z = {round(position[pos][pn]['focus'], 3)} microns | z0 = {round(position[pos][pn]['z0'], 3)} microns")
+        log(f"[{pos + 1}] Reality: y = {round(position[pos][pn]['SSY'], 3)} microns")
+        log(f"[{pos + 1}] Focus change: {round(focuschange, 3)} microns | Focus correction: {round(focuscorrection, 3)} microns")
+        log(f"[{pos + 1}] Alignment error: x = {round(aErrX * 1000)} nm | y = {round(aErrY * 1000)} nm")        
 
 ### Calculate new z0
 
@@ -614,12 +751,24 @@ def Tilt(tilt):
         position[pos][pn]["z0"] = position[pos][pn]["z0"][0]
 
         if doCtfFind:
-            cfind = sem.CtfFind("A", (min(maxDefocus, trackDefocus) - 2), min(-0.2, minDefocus + 2))
-            log("[" + str(pos + 1) + "] CtfFind: " + str(round(cfind[0], 3)) + " microns (" + str(round(cfind[-1], 2)) + " A)")
+            try:
+                sem.NoMessageBoxOnError(1)
+                cfind = sem.CtfFind("A", (min(maxDefocus, trackDefocus) - 2), min(-0.2, minDefocus + 2))
+                log(f"[{pos + 1}] CtfFind: {round(cfind[0], 3)} microns ({round(cfind[-1], 2)} A)")
+            except:
+                log(f"WARNING: CtfFind crashed on {targets[pos]['tsfile']} section {int(sem.ReportFileZsize()) - 1}. Trying to continue...")
+            finally:
+                sem.NoMessageBoxOnError(0)
 
         if doCtfPlotter:
-            cplot = sem.Ctfplotter("A", (min(maxDefocus, trackDefocus) - 2), min(-0.2, minDefocus + 2), 1, 0, pretilt)
-            log("[" + str(pos + 1) + "] Ctfplotter: " + str(round(cplot[0], 3)) + " microns")
+            try:
+                sem.NoMessageBoxOnError(1)
+                cplot = sem.Ctfplotter("A", (min(maxDefocus, trackDefocus) - 2), min(-0.2, minDefocus + 2), 1, 0, pretilt)
+                log(f"[{pos + 1}] Ctfplotter: {round(cplot[0], 3)} microns")
+            except:
+                log(f"WARNING: Ctfplotter crashed on {targets[pos]['tsfile']} section {int(sem.ReportFileZsize()) - 1}. Trying to continue...")
+            finally:
+                sem.NoMessageBoxOnError(0)
 
         if refineGeo and tilt == startTilt:
             if doCtfPlotter:
@@ -627,12 +776,12 @@ def Tilt(tilt):
                 geo[1].append(position[pos][pn]["SSY"])
                 geo[2].append(cplot[0])
             elif doCtfFind and len(cfind) > 5:
-                if cfind[5] < fitLimit:                            # save vectors for refineGeo only if CTF fit has reasonable resolution
+                if cfind[5] < fitLimit:                                                         # save vectors for refineGeo only if CTF fit has reasonable resolution
                     geo[0].append(position[pos][pn]["SSX"])
                     geo[1].append(position[pos][pn]["SSY"])
                     geo[2].append(cfind[0])
 
-        position[pos][pn]["sec"] = int(sem.ReportFileZsize()) - 1                # save section number for next alignment
+        position[pos][pn]["sec"] = int(sem.ReportFileZsize()) - 1                               # save section number for next alignment
 
         # progress = collected images * (positions - skipped positions) + current position - skipped positions scaled assuming homogeneous distribution of skipped positions
         progress = position[pos][pn]["sec"] * (len(position) - skippedTgts) + pos - skippedTgts * pos / len(position) + 1
@@ -642,11 +791,13 @@ def Tilt(tilt):
             remTime = int((sem.ReportClock() - startTime) / (percent - resumePercent) * (100 - percent) / 60)
         else:
             remTime = "?"
-        log("Progress: |" + bar + "| " + str(percent) + " % (" + str(remTime) + " min remaining)")
+        log(f"Progress: |{bar}| {percent} % ({remTime} min remaining)")
 
         if extendedMdoc:
             sem.AddToAutodoc("SpecimenShift", str(position[pos][pn]["SSX"]) + " " + str(position[pos][pn]["SSY"]))
             sem.AddToAutodoc("EucentricOffset", str(position[pos][pn]["z0"]))
+            if tgtMontage:
+                sem.AddToAutodoc("PixelShiftFromCenter", "0 0")
             if doCtfFind:
                 sem.AddToAutodoc("CtfFind", str(cfind[0]))
             if doCtfPlotter:
@@ -658,23 +809,23 @@ def Tilt(tilt):
 ### Abort conditions
         if np.linalg.norm(np.array([position[pos][pn]["SSX"], position[pos][pn]["SSY"]], dtype=float)) > imageShiftLimit - alignLimit:
             position[pos][pn]["skip"] = True
-            log("WARNING: Target [" + str(pos + 1) + "] is approaching the image shift limit. This branch will be aborted.")
+            log(f"WARNING: Target [{pos + 1}] is approaching the image shift limit. This branch will be aborted.")
 
         if minCounts > 0:
             meanCounts = sem.ReportMeanCounts()
             expTime, *_ = sem.ReportExposure("R")
             if meanCounts / expTime < minCounts:
                 position[pos][pn]["skip"] = True
-                log("WARNING: Target [" + str(pos + 1) + "] was too dark. This branch will be aborted.")
+                log(f"WARNING: Target [{pos + 1}] was too dark. This branch will be aborted.")
 
         if tilt >= maxTilt or tilt <= minTilt:
             position[pos][pn]["skip"] = True
             if maxTilt - startTilt != abs(minTilt - startTilt):
-                log("WARNING: Target [" + str(pos + 1) + "] has reached the final tilt angle. This branch will be aborted.")            
+                log(f"WARNING: Target [{pos + 1}] has reached the final tilt angle. This branch will be aborted.")            
 
         updateTargets(runFileName, targets, position, position[pos][pn]["sec"], pos)    
 
-### Refine energy filter slit if appropiate
+### Refine energy filter slit if appropriate
     if tgtPattern and slitInterval > 0 and (lastSlitCheck - sem.ReportClock() / 60) > slitInterval:
         checkSlit(np.array([vecB0, vecB1]), size, realTilt, pn)
 
@@ -687,12 +838,12 @@ def Tilt(tilt):
 def dumpVars(filename):
     output = "# PACEtomo settings from " + datetime.now().strftime("%d.%m.%Y %H:%M:%S") + "\n"
     save = False
-    for var in globals():                                        # globals() is ordered by creation, start and end points might have to be adjusted if script changes
-        if var == "sem":                                    # first var after settings vars
+    for var in globals():                                                                       # globals() is ordered by creation, start and end points might have to be adjusted if script changes
+        if var == "sem":                                                                        # first var after settings vars
             break
         if save:
             output += var + " = " + str(globals()[var]) + "\n"
-        if var == "SEMflush":                                    # last var before settings vars
+        if var == "SEMflush":                                                                   # last var before settings vars
             save = True
     with open(filename + "_settings.txt", "w") as f:
         f.write(output)
@@ -705,9 +856,10 @@ tiltLimit = sem.ReportProperty("MaximumTiltAngle")
 
 sem.SetUserSetting("DriftProtection", 1)
 sem.SetUserSetting("ShiftToTiltAxis", 1)
-sem.SetNewFileType(0)        # set file type to mrc in case user changed default file type
+sem.SetNewFileType(0)                                                                           # set file type to mrc in case user changed default file type
 
 # Warnings
+log(f"DEBUG: Tilt limit is: {tiltLimit}")
 if (maxTilt > tiltLimit or (minTilt - step) < -tiltLimit) and sem.IsVariableDefined("warningTiltAngle") == 0:
     sem.Pause("WARNING: Tilt angles go beyond +/- 70 degrees. Most stage limitations do not allow for symmetrical tilt series with these values!")
     sem.SetPersistentVar("warningTiltAngle", "")
@@ -726,9 +878,9 @@ sem.SaveSettings()
 sem.SaveNavigator()
 
 sem.SuppressReports()
-if beamTiltComp:                                            # check if there is a calibration saved, throws error if not
+if beamTiltComp:                                                                                # check if there is a calibration saved, throws error if not
     sem.ReportComaVsISmatrix()
-if tgtPattern:                                                # initialize in case tgts file contains values
+if tgtPattern:                                                                                  # initialize in case tgts file contains values
     vecA0 = vecA1 = vecB0 = vecB1 = size = None
 
 ### Find target file
@@ -739,40 +891,39 @@ fileStem, fileExt = os.path.splitext(navNote)
 curDir = sem.ReportDirectory()
 
 if fileStem != "" and fileExt == ".txt":
-    tf = sorted(glob.glob(os.path.join(curDir, fileStem + ".txt")))                    # find  tgts file
-    tfr = sorted(glob.glob(os.path.join(curDir, fileStem + "_run??.txt")))                # find run files but not copied tgts file
-    tf.extend(tfr)                                            # only add run files to list of considered files
+    tf = sorted(glob.glob(os.path.join(curDir, fileStem + ".txt")))                             # find  tgts file
+    tfr = sorted(glob.glob(os.path.join(curDir, fileStem + "_run??.txt")))                      # find run files but not copied tgts file
+    tf.extend(tfr)                                                                              # only add run files to list of considered files
     while tf == []:
         searchInput = sem.YesNoBox("\n".join(["Target file not found! Please choose the directory containing the target file!", "WARNING: All future target files will be searched here!"]))
         if searchInput == 0:
             sem.Exit()
         sem.UserSetDirectory("Please choose the directory containing the target file!")
         curDir = sem.ReportDirectory()
-        tf = sorted(glob.glob(os.path.join(curDir, fileStem + ".txt")))                # find  tgts file
-        tfr = sorted(glob.glob(os.path.join(curDir, fileStem + "_run??.txt")))            # find run files but not copied tgts file
-        tf.extend(tfr)                                        # only add run files to list of considered files
+        tf = sorted(glob.glob(os.path.join(curDir, fileStem + ".txt")))                         # find  tgts file
+        tfr = sorted(glob.glob(os.path.join(curDir, fileStem + "_run??.txt")))                  # find run files but not copied tgts file
+        tf.extend(tfr)                                                                          # only add run files to list of considered files
 else:
     sem.OKBox("The navigator item note does not contain a target file. Make sure to setup PACEtomo targets using the selectTargets script and select the Navigator item marked to be acquired!")
     sem.Exit()
 
 # Check if frame folder is set reasonably
-try:
+if sem.ReportCameraProperty(0, "K2Type") > 0:
     framePath = sem.ReportFrameSavingPath()
-except:
+    framePar = os.path.abspath(os.path.join(framePath, os.pardir))
+    curPar = os.path.abspath(os.path.join(curDir, os.pardir))
+    if (framePath == "NONE" or (framePath not in curDir and curDir not in framePath and framePar not in curDir and curPar not in framePath)) and sem.IsVariableDefined("warningFramePath") == 0:
+        sem.Pause("WARNING: Current frame path (" + framePath + ") does not seem plausible or camera does not save frames.")
+        sem.SetPersistentVar("warningFramePath", "")
+else:
     log("WARNING: Camera frame path could not be obtained for your camera.")
-    framePath = "NONE"
-framePar = os.path.abspath(os.path.join(framePath, os.pardir))
-curPar = os.path.abspath(os.path.join(curDir, os.pardir))
-if (framePath == "NONE" or (framePath not in curDir and curDir not in framePath and framePar not in curDir and curPar not in framePath)) and sem.IsVariableDefined("warningFramePath") == 0:
-    sem.Pause("WARNING: Current frame path (" + framePath + ") does not seem plausible or camera does not save frames.")
-    sem.SetPersistentVar("warningFramePath", "")
 
 sem.SaveLogOpenNew(navNote.split("_tgts")[0])
 
-log("PACEtomo Version " + versionPACE, color=5, style=1)
+log(f"PACEtomo Version {versionPACE}", color=5, style=1)
 sem.ProgramTimeStamps()
 
-with open(tf[-1]) as f:                                            # open last tgts or tgts_run file
+with open(tf[-1]) as f:                                                                         # open last tgts or tgts_run file
     targetFile = f.readlines()
 
 targets, savedRun, resume, geoPoints = parseTargets(targetFile)
@@ -789,19 +940,18 @@ if savedRun != False and (resume["sec"] > 0 or resume["pos"] > 0):
             sem.CloseFile()
 
         stageX, stageY, stageZ = sem.ReportStageXYZ()
-        if abs(stageX - float(targets[0]["stageX"])) > 1.0 or abs(stageY - float(targets[0]["stageY"])) > 1.0:    # test if stage was moved (with 1 micron wiggle room)
+        if abs(stageX - float(targets[0]["stageX"])) > 1.0 or abs(stageY - float(targets[0]["stageY"])) > 1.0: # test if stage was moved (with 1 micron wiggle room)
             userRealign = sem.YesNoBox("It seems that the stage was moved since stopping acquisition. Do you want to realign to the tracking target before resuming? This will also reset prediction parameters reducing tracking accuracy.")    
             realign = True if userRealign == 1 else False
     else:
         sem.AllowFileOverwrite(1)
 
 ### Start setup
-
-dumpVars(os.path.splitext(os.path.basename(tf[-1]))[0])                            # write settings vars to text file
+dumpVars(os.path.splitext(os.path.basename(tf[-1]))[0])                                         # write settings vars to text file
 
 sem.ResetClock()
 
-targetDefocus = maxDefocus                                        # use highest defocus for tracking TS
+targetDefocus = maxDefocus                                                                      # use highest defocus for tracking TS
 sem.SetTargetDefocus(targetDefocus)
 
 # Collect exposure settings
@@ -811,18 +961,18 @@ if recover:
     log("##### Recovery attempt of PACEtomo with parameters: #####", style=1)
 else:
     log("##### Starting new PACEtomo with parameters: #####", style=1)
-log("Start: " + str(startTilt) + " deg - Min/Max: " + str(minTilt) + "/" + str(maxTilt) + " deg (" + str(step) + " deg increments)")
-log("Data points used: " + str(dataPoints))
-log("Target defocus range (min/max/step): " + str(minDefocus) + "/" + str(maxDefocus) + "/" + str(stepDefocus))
-log("Sample pretilt (rotation): " + str(pretilt) + " (" + str(rotation) + ")")
-log("Tilt axis offset: " + str(round(tiltAxisOffset, 3)))
-log("Focus correction slope: " + str(focusSlope))
-log("Exposure time per tilt: " + str(round(expTime, 3)) + " s (total: " + str(round(expTime * int((maxTilt - minTilt) / step), 3)) + " s)")
+log(f"Start: {startTilt} deg - Min/Max: {minTilt}/{maxTilt} deg ({step} deg increments)")
+log(f"Data points used: {dataPoints}")
+log(f"Target defocus range (min/max/step): {minDefocus}/{maxDefocus}/{stepDefocus}")
+log(f"Sample pretilt (rotation): {pretilt} ({rotation})")
+log(f"Tilt axis offset: {round(tiltAxisOffset, 3)}")
+log(f"Focus correction slope: {focusSlope}")
+log(f"Exposure time per tilt: {round(expTime, 3)} s (total: {round(expTime * int((maxTilt - minTilt) / step), 3)} s)")
 
 if trackMag > 0:
     log("WARNING: A magnification offset for the tracking target changes the Low Dose Record mode temporarily. Please double-check your Record mode in case the script is stopped prematurely or crashes!")
 
-if (startTilt > 0 and pretilt > 0) or (startTilt < 0 and pretilt < 0):
+if startTilt * pretilt > 0:
     log("WARNING: Start tilt and pretilt have the same sign! If you want to compensate for the pretilt, the start tilt should have the opposite sign!")
 
 branchsteps = max(maxTilt - startTilt, abs(minTilt - startTilt)) / groupSize / step
@@ -833,11 +983,11 @@ while os.path.exists(os.path.join(curDir, fileStem + "_run" + str(counter).zfill
     counter += 1
 runFileName = os.path.join(curDir, fileStem + "_run" + str(counter).zfill(2) + ".txt")
 
-### Initital actions
+### Initial actions
 if not recover:
     log("Moving to target area...")
 
-    sem.SetCameraArea("V", "F")                                    # set View to Full for Eucentricity
+    sem.SetCameraArea("V", "F")                                                                 # set View to Full for Eucentricity
     sem.MoveToNavItem(navID)
     log("Refining eucentricity...")
     sem.Eucentricity(1)
@@ -851,7 +1001,7 @@ if not recover:
         sem.SetBinning("V", int(binning))
         sem.V()
         sem.CropCenterToSize("A", int(x), int(y))
-        sem.AlignTo("P")
+        sem.AlignTo("P", 0, 0, 0, int(debug))
         sem.RestoreCameraSet("V")
         if refineVec and tgtPattern and size is not None:
             if float(sem.ReportDefocus()) < -50:
@@ -861,13 +1011,13 @@ if not recover:
             sem.GoToLowDoseArea("R")
             ISX0, ISY0, *_ = sem.ReportImageShift()
             SSX0, SSY0 = sem.ReportSpecimenShift()
-            log("Vector A: (" + str(vecA0) + ", " + str(vecA1) + ")")
+            log(f"Vector A: ({vecA0}, {vecA1})")
             shiftx = size * vecA0
             shifty = size * vecA1
             sem.ImageShiftByMicrons(shiftx, shifty)
 
             sem.V()
-            sem.AlignTo("P")
+            sem.AlignTo("P", 0, 0, 0, int(debug))
             sem.GoToLowDoseArea("R")
 
             SSX, SSY = sem.ReportSpecimenShift()
@@ -877,16 +1027,16 @@ if not recover:
                 log("WARNING: Refined vector differs by more than 0.5 microns! Original vectors will be used.")
             else:
                 vecA0, vecA1 = (round(SSX / size, 4), round(SSY / size, 4))
-                log("Refined vector A: (" + str(vecA0) + ", " + str(vecA1) + ")")
+                log(f"Refined vector A: ({vecA0}, {vecA1})")
 
-                sem.SetImageShift(ISX0, ISY0)                        # reset IS to center position
-                log("Vector B: (" + str(vecB0) + ", " + str(vecB1) + ")")
+                sem.SetImageShift(ISX0, ISY0)                                                   # reset IS to center position
+                log(f"Vector B: ({vecB0}, {vecB1})")
                 shiftx = size * vecB0
                 shifty = size * vecB1
                 sem.ImageShiftByMicrons(shiftx, shifty)
 
                 sem.V()
-                sem.AlignTo("P")
+                sem.AlignTo("P", 0, 0, 0, int(debug))
                 sem.GoToLowDoseArea("R")
 
                 SSX, SSY = sem.ReportSpecimenShift()
@@ -896,7 +1046,7 @@ if not recover:
                     log("WARNING: Refined vector differs by more than 0.5 microns! Original vectors will be used.")
                 else:
                     vecB0, vecB1 = (round(SSX / size, 4), round(SSY / size, 4))
-                    log("Refined vector B: (" + str(vecB0) + ", " + str(vecB1) + ")")
+                    log(f"Refined vector B: ({vecB0}, {vecB1})")
 
                     targetNo = 0
                     for i in range(-size,size+1):
@@ -908,13 +1058,13 @@ if not recover:
                             targets[targetNo]["SSX"] = str(SSX)
                             targets[targetNo]["SSY"] = str(SSY)
                     log("NOTE: Target pattern was overwritten using refined vectors.")
-            sem.SetImageShift(ISX0, ISY0)                            # reset IS to center position
+            sem.SetImageShift(ISX0, ISY0)                                                       # reset IS to center position
     else:
         sem.RealignToOtherItem(navID, 1)
 
     if measureGeo:
         log("Measuring geometry...")
-        if len(geoPoints) > 0 and "SSX" in geoPoints[0].keys():            # if there are geo points in tgts file, adjust format from dict to list
+        if len(geoPoints) > 0 and "SSX" in geoPoints[0].keys():                                 # if there are geo points in tgts file, adjust format from dict to list
             geoPoints = [[point["SSX"], point["SSY"]] for point in geoPoints]
         if len(geoPoints) < 3 and tgtPattern and size is not None:
             if size > 1:
@@ -933,13 +1083,13 @@ if not recover:
                 sem.G(-1)
                 defocus, *_ = sem.ReportAutoFocus()
                 drift = sem.ReportFocusDrift()
-                if defocus != 0 and drift != 0:
+                if abs(defocus) >= 0.01 and np.linalg.norm(drift) >= 0.01:
                     geoXYZ[0].append(geoPoints[i][0])
                     geoXYZ[1].append(geoPoints[i][1])
                     geoXYZ[2].append(defocus)
                 else:
                     log("WARNING: Measured defocus is 0. This geo point will not be considered.")
-                sem.SetImageShift(ISX0, ISY0)                            # reset IS to center position
+                sem.SetImageShift(ISX0, ISY0)                                                   # reset IS to center position
             if len(geoXYZ[0]) >= 3:
                 ##########
                 # Source: https://math.stackexchange.com/q/99317
@@ -948,15 +1098,29 @@ if not recover:
                 left = svd[0]
                 norm = left[:, -1]
                 ##########        
-                log("Fitted plane into cloud of " + str(len(geoPoints)) + " points.")
-                log("Normal vector: " + str(norm))
+                log(f"Fitted plane into cloud of {len(geoXYZ[0])} points ({len(geoPoints) - len(geoXYZ[0])} discarded).")
+                log(f"Normal vector: {norm}")
+
+                # Errors
+                errors = []
+                for point in zip(*geoXYZ):
+                    errors.append(np.dot(norm, point - np.mean(geoXYZ, axis=1)) ** 2)
+                log(f"Fitting error: {np.mean(errors)}")
+
+                if debug:
+                    log("DEBUG:\nGeo points [x, y, z, err]:")
+                    for point in zip(*geoXYZ, errors):
+                        log(f"# {point}", color=1)
 
                 # Calculate pretilt and rotation
                 sign = 1 if norm[1] <= 0 else -1
                 pretilt = round(sign * np.degrees(np.arccos(norm[2])), 1)
-                log("Estimated pretilt: " + str(pretilt) + " degrees", style=1)
+                log(f"Estimated pretilt: {pretilt} degrees", style=1)
                 rotation = round(-np.degrees(np.arctan(norm[0]/norm[1])), 1)
-                log("Estimated rotation: " + str(rotation) + " degrees", style=1)
+                log(f"Estimated rotation: {rotation} degrees", style=1)
+
+                if startTilt * pretilt > 0:
+                    log("WARNING: Start tilt and pretilt have the same sign! If you want to compensate for the pretilt, the start tilt should have the opposite sign!")
             else:
                 log("WARNING: Not enough geo points could be checked successfully. Geometry could not be measured.")
         else:
@@ -967,36 +1131,52 @@ if not recover:
     sem.V()
     sem.Copy("A", "O")
 
-    sem.TiltBy(-2 * step)
-    if slowTilt: sem.TiltBy(step)
+    # Walk up if necessary
+    if abs(startTilt) > 10:
+        sem.TiltTo(startTilt // 2)
+        sem.V()
+        sem.AlignTo("O", 0, 0, 0, int(debug))
+        sem.V()
+        sem.Copy("A", "O")
+
+    sem.TiltTo(startTilt - step)
     sem.TiltTo(startTilt)
 
     sem.V()
-    sem.AlignTo("O")
+    sem.AlignTo("O", 0, 0, 0, int(debug))
     sem.GoToLowDoseArea("R")
 
     if not tgtPattern and previewAli:
-        sem.LoadOtherMap(navID, "O")                                # preview ali before first tilt image is taken
-        sem.AcquireToMatchBuffer("O")                                # in case view image was saved for tracking target
-        sem.AlignTo("O")
+        sem.LoadOtherMap(navID, "O")                                                            # preview ali before first tilt image is taken
+        sem.AcquireToMatchBuffer("O")                                                           # in case view image was saved for tracking target
+        sem.AlignTo("O", 0, 0, 0, int(debug))
 
     ISX0, ISY0, *_ = sem.ReportImageShift()
     SSX0, SSY0 = sem.ReportSpecimenShift()
 
     sem.G()
     focus0 = float(sem.ReportDefocus())
-    positionFocus = focus0                                         # set maxDefocus as focus0 and add focus steps in loop
+    positionFocus = focus0                                                                      # set maxDefocus as focus0 and add focus steps in loop
     minFocus0 = focus0 - maxDefocus + minDefocus
 
     sem.GoToLowDoseArea("R")
     s2ssMatrix = np.array(sem.StageToSpecimenMatrix(0)).reshape((2, 2))
     is2ssMatrix = np.array(sem.ISToSpecimenMatrix(0)).reshape((2, 2))
+    ss2isMatrix = np.array(sem.SpecimenToISMatrix(0)).reshape((2, 2))
     camX, camY, *_ = sem.CameraProperties()
     c2ssMatrix = np.array(sem.CameraToSpecimenMatrix(0)).reshape((2, 2))
+    ss2cMatrix = np.array(sem.SpecimenToCameraMatrix(0)).reshape((2, 2))
+    if debug:
+        log("DEBUG: Conversion matrices:")
+        log(f"    Stage to Specimen: {s2ssMatrix}", color=1)
+        log(f"    IS to Specimen: {is2ssMatrix}", color=1)
+        log(f"    Image to Specimen: {c2ssMatrix}", color=1)
+        log(f"    Specimen to Camera: {ss2cMatrix}", color=1)
+
     if previewAli:
-        sem.SetDefocus(min(focus0, focus0 - 5 - targetDefocus))                    # set defocus for Preview to at least -5 micron
+        sem.SetDefocus(min(focus0, focus0 - 5 - targetDefocus))                                 # set defocus for Preview to at least -5 micron
 ### Target setup
-    log("Setting up " + str(len(targets)) + " targets...")
+    log(f"Setting up {len(targets)} targets...")
 
     posTemplate = {"SSX": 0, "SSY": 0, "focus": 0, "z0": 0, "n0": 0, "shifts": [], "angles": [], "ISXset": 0, "ISYset": 0, "ISXali": 0, "ISYali": 0, "dose": 0, "sec": 0, "skip": False}
     position = []
@@ -1005,15 +1185,15 @@ if not recover:
         position.append([])
         position[-1].append(copy.deepcopy(posTemplate))
 
-        log("Target " + str(i + 1) + "...")
+        log(f"Target {i + 1}...")
         skip = False
         if "skip" in tgt.keys() and tgt["skip"] == "True":
-            log("WARNING: Target [" + str(i + 1).zfill(3) + "] was set to be skipped.")
+            log(f"WARNING: Target [{str(i + 1).zfill(3)}] was set to be skipped.")
             skip = True
-        if "SSX" not in tgt.keys() and "stageX" in tgt.keys():                    # if SS coords are missing but stage coords are present, calc SS coords
+        if "SSX" not in tgt.keys() and "stageX" in tgt.keys():                                  # if SS coords are missing but stage coords are present, calc SS coords
             tgt["SSX"], tgt["SSY"] = s2ssMatrix @ np.array([float(tgt["stageX"]) - float(targets[0]["stageX"]), float(tgt["stageY"]) - float(targets[0]["stageY"])])
         if np.linalg.norm(np.array([tgt["SSX"], tgt["SSY"]], dtype=float)) > imageShiftLimit - alignLimit:
-            log("WARNING: Target [" + str(i + 1).zfill(3) + "] is too close to the image shift limit. This target will we skipped.")
+            log(f"WARNING: Target [{str(i + 1).zfill(3)}] is too close to the image shift limit. This target will we skipped.")
             skip = True
 
         if skip: 
@@ -1023,34 +1203,52 @@ if not recover:
             skippedTgts += 1
             continue
 
-        tiltScaling = np.cos(np.radians(pretilt * np.cos(np.radians(rotation)) + startTilt)) / np.cos(np.radians(pretilt * np.cos(np.radians(rotation))))    # stretch shifts from 0 tilt to startTilt
-        sem.ImageShiftByMicrons(float(tgt["SSX"]), float(tgt["SSY"]) * tiltScaling)        # apply relative shifts to find out absolute IS after realign to item
-        if (previewAli or viewAli) and i != 0:                            # skip for tracking target since it was already aligned after tilt to starttilt                                        # adds initial dose, but makes sure start tilt image is on target
+        tiltScaling = np.cos(np.radians(pretilt * np.cos(np.radians(rotation)) + startTilt)) / np.cos(np.radians(pretilt * np.cos(np.radians(rotation)))) # stretch shifts from 0 tilt to startTilt
+        log(f"DEBUG: Tilt scaling to start tilt [{startTilt}]: {tiltScaling}")
+        sem.ImageShiftByMicrons(float(tgt["SSX"]), float(tgt["SSY"]) * tiltScaling)             # apply relative shifts to find out absolute IS after realign to item
+        if (previewAli or viewAli) and i != 0:                                                  # skip for tracking target since it was already aligned after tilt to startTilt                                        # adds initial dose, but makes sure start tilt image is on target
             if alignToP:
                 x, y, binning, exp, *_ = sem.ImageProperties("P")
                 sem.SetExposure("V", exp)
                 sem.SetBinning("V", int(binning))
                 sem.V()
                 sem.CropCenterToSize("A", int(x), int(y))
-                sem.AlignTo("P")
+                sem.AlignTo("P", 0, 0, 0, int(debug))
                 sem.RestoreCameraSet("V")
             else:
                 if "viewfile" in tgt.keys() and viewAli:
-                    sem.ReadOtherFile(0, "O", tgt["viewfile"])            # reads view file for first AlignTo instead
+                    sem.ReadOtherFile(0, "O", tgt["viewfile"])                                  # reads view file for first AlignTo instead
                     sem.V()
-                    sem.AlignTo("O")
+                    sem.AlignTo("O", 0, 0, 0, int(debug))
                     ASX, ASY = sem.ReportAlignShift()[4:6]
-                    log("Target alignment (View) error in X | Y: " + str(round(ASX, 0)) + " nm | " + str(round(ASY, 0)) + " nm")    
+                    log(f"Target alignment (View) error in X | Y: {round(ASX, 0)} nm | {round(ASY, 0)} nm")    
                 if "tgtfile" in tgt.keys() and previewAli:                
-                    sem.ReadOtherFile(0, "O", tgt["tgtfile"])            # reads tgt file for first AlignTo instead
+                    sem.ReadOtherFile(0, "O", tgt["tgtfile"])                                   # reads tgt file for first AlignTo instead
                     sem.L()
-                    sem.AlignTo("O")    
-                    ASX, ASY = sem.ReportAlignShift()[4:6]
-                    log("Target alignment (Prev) error in X | Y: " + str(round(ASX, 0)) + " nm | " + str(round(ASY, 0)) + " nm")
+                    sem.AlignTo("O", 0, 0, 0, int(debug)) 
+                    AISX, AISY, ASX, ASY = sem.ReportAlignShift()[2:6]
+                    log(f"Target alignment (Prev) error in X | Y: {round(ASX, 0)} nm | {round(ASY, 0)} nm")
+                elif "viewfile" in tgt.keys() and previewAli:
+                    # Use align between mags to align preview image to view image
+                    sem.GoToLowDoseArea("V")                                                    # If ReadOtherFile while in Record, pixel size of Record is used and AlignBetweenMags fails
+                    sem.ReadOtherFile(0, "O", tgt["viewfile"])                                  # reads view file for first AlignTo instead
+                    sem.L()
+                    sem.AlignBetweenMags("O", -1, -1, -1)
+                    AISX, AISY, ASX, ASY = sem.ReportAlignShift()[2:6]
+                    log(f"Target alignment (Pv2V) error in X | Y: {round(ASX, 0)} nm | {round(ASY, 0)} nm")           
+
+                # Save preview image as new reference
+                if refFromPreview:
+                    sem.OpenNewFile(os.path.splitext(tgt["tgtfile"])[0] + "_tempref.mrc")
+                    sem.S()
+                    sem.CloseFile()
+                    position[-1][0]["ISXali"] = AISX                                            # Save shifts to real reference
+                    position[-1][0]["ISYali"] = AISY 
+
             sem.GoToLowDoseArea("R")
         ISXset, ISYset, *_ = sem.ReportImageShift()
         SSX, SSY = sem.ReportSpecimenShift()
-        sem.SetImageShift(ISX0, ISY0)                                # reset IS to center position    
+        sem.SetImageShift(ISX0, ISY0)                                                           # reset IS to center position    
 
         z0_ini = np.tan(np.radians(pretilt)) * (np.cos(np.radians(rotation)) * float(tgt["SSY"]) - np.sin(np.radians(rotation)) * float(tgt["SSX"]))
         correctedFocus = positionFocus - z0_ini * np.cos(np.radians(startTilt)) - float(tgt["SSY"]) * np.sin(np.radians(startTilt))
@@ -1058,24 +1256,24 @@ if not recover:
         position[-1][0]["SSX"] = float(SSX)
         position[-1][0]["SSY"] = float(SSY)
         position[-1][0]["focus"] = correctedFocus
-        position[-1][0]["z0"] = z0_ini                                # offset from eucentric height (will be refined during collection)
-        position[-1][0]["n0"] = float(tgt["SSY"])                        # offset from tilt axis
+        position[-1][0]["z0"] = z0_ini                                                          # offset from eucentric height (will be refined during collection)
+        position[-1][0]["n0"] = float(tgt["SSY"])                                               # offset from tilt axis
         position[-1][0]["ISXset"] = float(ISXset)
         position[-1][0]["ISYset"] = float(ISYset)
 
-        position[-1].append(copy.deepcopy(position[-1][0]))                    # plus and minus branch start with same values
+        position[-1].append(copy.deepcopy(position[-1][0]))                                     # plus and minus branch start with same values
         position[-1].append(copy.deepcopy(position[-1][0]))
 
         position[-1][1]["n0"] -= taOffsetPos
         position[-1][2]["n0"] -= taOffsetNeg
 
-        positionFocus += stepDefocus                                # adds defocus step between targets and resets to initial defocus if minDefocus is surpassed
+        positionFocus += stepDefocus                                                            # adds defocus step between targets and resets to initial defocus if minDefocus is surpassed
         if positionFocus > minFocus0: positionFocus = focus0
 
 ### Start tilt
     log("Start tilt series...", style=1)
-    log("Tilt step " + str(1) + " out of " + str(int((maxTilt - minTilt) / step + 1)) + " (" + str(startTilt) + " deg)...")
-    sem.SetStatusLine(1, "Tilt step: " + str(1) + " / " + str(int((maxTilt - minTilt) / step + 1)))
+    log(f"Tilt step 1 out of {int((maxTilt - minTilt) / step + 1)} ({startTilt} deg)...")
+    sem.SetStatusLine(1, f"Tilt step: 1 / {int((maxTilt - minTilt) / step + 1)}")
 
     maxProgress = ((maxTilt - minTilt) / step + 1) * (len(position) - skippedTgts)
     resumePercent = 0
@@ -1088,10 +1286,10 @@ if not recover:
     Tilt(startTilt)
 
     if refineGeo:
-        if len(geo[2]) >= 3:                                    # if number of points > 3: fit z = a * x + b * y
+        if len(geo[2]) >= 3:                                                                    # if number of points > 3: fit z = a * x + b * y
             log("Refining geometry...")
-            log(str(len(geo[2])) + " usable CtfFind results found.")
-            if len(geo[2]) >= parabolTh:                            # if number of points > 6: fit z = a * x + b * y + c * (x**2) + d * (y**2) + e * x * y
+            log(f"{len(geo[2])} usable CtfFind results found.")
+            if len(geo[2]) >= parabolTh:                                                        # if number of points > 6: fit z = a * x + b * y + c * (x**2) + d * (y**2) + e * x * y
                 log("Fitting paraboloid...")
                 geoF = geoPara
             else:                            
@@ -1106,16 +1304,16 @@ if not recover:
             rmse = np.sqrt(ss / len(geo[2]))
 
             log("Fit parameters: " + " # ".join(p.astype(str)))
-            log("RMSE: " + str(round(rmse, 3)))
+            log(f"RMSE: {round(rmse, 3)}")
 
-            for pos in range(0, len(position)):                        # calculate and adjust refined z0
+            for pos in range(0, len(position)):                                                 # calculate and adjust refined z0
                 zs = geoF([position[pos][1]["SSX"], position[pos][1]["SSY"]], *p)
                 z0_ref = position[pos][1]["z0"] + zs * np.cos(np.radians(startTilt)) + position[pos][1]["SSY"] * np.sin(np.radians(startTilt))
 
                 position[pos][1]["z0"] = z0_ref
                 position[pos][2]["z0"] = z0_ref
         else: 
-            log("WARNING: Not enough reliable CtfFind results (" + str(len(geo[2])) + ") to refine geometry. Continuing with initial geometry model.")
+            log(f"WARNING: Not enough reliable CtfFind results ({len(geo[2])}) to refine geometry. Continuing with initial geometry model.")
 
     startstep = 0
     substep = [0, 0]
@@ -1132,7 +1330,7 @@ else:
             sem.SetBinning("V", int(binning))
             sem.V()
             sem.CropCenterToSize("A", int(x), int(y))
-            sem.AlignTo("P")
+            sem.AlignTo("P", 0, 0, 0, int(debug))
             sem.RestoreCameraSet("V")
         else:
             sem.RealignToOtherItem(navID, 1)
@@ -1162,33 +1360,33 @@ else:
             position[-1][i+1]["sec"] = int(savedRun[pos][i]["sec"])
             position[-1][i+1]["skip"] = True if savedRun[pos][i]["skip"] == "True" or targets[pos]["skip"] == "True" else False
 
-        sem.AreaForCumulRecordDose(pos + 1)                             # set dose accumulator to highest recorded prior dose
+        sem.AreaForCumulRecordDose(pos + 1)                                                     # set dose accumulator to highest recorded prior dose
         sem.AccumulateRecordDose(max(position[-1][1]["dose"], position[-1][2]["dose"]))
 
         if targets[pos]["skip"] == "True":
             skippedTgts += 1
 
-    startstep = (resume["sec"] - 1) // (2 * groupSize)                  # figure out start values for branch loops
+    startstep = (resume["sec"] - 1) // (2 * groupSize)                                          # figure out start values for branch loops
     substep = [min((resume["sec"] - 1) % (2 * groupSize), groupSize), (resume["sec"] - 1) % (2 * groupSize) // (groupSize + 1)]
 
     realTilt = float(savedRun[resume["pos"]][0]["angles"].split(",")[-1])
-    if np.floor(realTilt) % step == 0:                                  # necessary because angles array was switched to realTilt
+    if np.floor(realTilt) % step == 0:                                                          # necessary because angles array was switched to realTilt
         lastTilt = np.floor(realTilt)
     else:
         lastTilt = np.ceil(realTilt)
-    plustilt = resumePlus = lastTilt                                    # obtain last angle from savedRun in case position["angles"] was reset
-    if substep[0] < groupSize:                                          # subtract step when stopped during positive branch
+    plustilt = resumePlus = lastTilt                                                            # obtain last angle from savedRun in case position["angles"] was reset
+    if substep[0] < groupSize:                                                                  # subtract step when stopped during positive branch
         plustilt -= step
-        resumePN = 1                                                    # indicator which branch was interrupted
+        resumePN = 1                                                                            # indicator which branch was interrupted
         sem.TiltTo(plustilt)
     if savedRun[pos][1]["angles"] != "":
         realTilt = float(savedRun[resume["pos"]][1]["angles"].split(",")[-1])
-        if np.floor(realTilt) % step == 0:                              # necessary because angles array was switched to realTilt
+        if np.floor(realTilt) % step == 0:                                                      # necessary because angles array was switched to realTilt
             lastTilt = np.floor(realTilt)
         else:
             lastTilt = np.ceil(realTilt)
         minustilt = resumeMinus = lastTilt
-        if substep[0] == groupSize:                                     # add step when stopped during negative branch
+        if substep[0] == groupSize:                                                             # add step when stopped during negative branch
             minustilt += step
             resumePN = 2
             sem.TiltTo(minustilt)
@@ -1204,8 +1402,19 @@ else:
 
     sem.GoToLowDoseArea("R")
     origMag, *_ = sem.ReportMag()
+    s2ssMatrix = np.array(sem.StageToSpecimenMatrix(0)).reshape((2, 2))
     is2ssMatrix = np.array(sem.ISToSpecimenMatrix(0)).reshape((2, 2))
-    focus0 = (position[0][1]["focus"] + position[0][2]["focus"]) / 2                 # get estimate for original microscope focus value by taking average of both branches of tracking target
+    camX, camY, *_ = sem.CameraProperties()
+    c2ssMatrix = np.array(sem.CameraToSpecimenMatrix(0)).reshape((2, 2))
+    ss2cMatrix = np.array(sem.SpecimenToCameraMatrix(0)).reshape((2, 2))
+    if debug:
+        log("DEBUG: Conversion matrices:")
+        log(f"    Stage to Specimen: {s2ssMatrix}", color=1)
+        log(f"    IS to Specimen: {is2ssMatrix}", color=1)
+        log(f"    Image to Specimen: {c2ssMatrix}", color=1)
+        log(f"    Specimen to Camera: {ss2cMatrix}", color=1)
+
+    focus0 = (position[0][1]["focus"] + position[0][2]["focus"]) / 2                            # get estimate for original microscope focus value by taking average of both branches of tracking target
 
     startTime = sem.ReportClock()
     lastSlitCheck = startTime
@@ -1216,23 +1425,22 @@ for i in range(startstep, int(np.ceil(branchsteps))):
     for j in range(substep[0], groupSize):
         plustilt += step
         if all([pos[1]["skip"] for pos in position]): continue
-        log("")
-        log("Tilt step " + str(i * 2 * groupSize + j + 1 + 1) + " out of " + str(int((maxTilt - minTilt) / step + 1)) + " (" + str(plustilt) + " deg)...", style=1)
-        sem.SetStatusLine(1, "Tilt step: " + str(i * 2 * groupSize + j + 1 + 1) + " / " + str(int((maxTilt - minTilt) / step + 1)))
+        log(f"\nTilt step {i * 2 * groupSize + j + 1 + 1} out of {int((maxTilt - minTilt) / step + 1)} ({plustilt} deg)...", style=1)
+        sem.SetStatusLine(1, f"Tilt step: {i * 2 * groupSize + j + 1 + 1} / {int((maxTilt - minTilt) / step + 1)}")
         Tilt(plustilt)
     for j in range(substep[1], groupSize):
         minustilt -= step
         if all([pos[2]["skip"] for pos in position]): continue
-        log("")
-        log("Tilt step " + str(i * 2 * groupSize + j + groupSize + 1 + 1) + " out of " + str(int((maxTilt - minTilt) / step + 1)) + " (" + str(minustilt) + " deg)...", style=1)
-        sem.SetStatusLine(1, "Tilt step: " + str(i * 2 * groupSize + j + groupSize + 1 + 1) + " / " + str(int((maxTilt - minTilt) / step + 1)))
+        log(f"\nTilt step {i * 2 * groupSize + j + groupSize + 1 + 1} out of {int((maxTilt - minTilt) / step + 1)} ({minustilt} deg)...", style=1)
+        sem.SetStatusLine(1, f"Tilt step: {i * 2 * groupSize + j + groupSize + 1 + 1} / {int((maxTilt - minTilt) / step + 1)}")
         Tilt(minustilt)
-    substep = [0, 0]                                        # reset substeps after recovery
-    if coldFEG: checkColdFEG()                                    # check for flashing at the end of each step
+    substep = [0, 0]                                                                            # reset sub steps after recovery
+    if coldFEG: checkColdFEG()                                                                  # check for flashing at the end of each step
 
 ### Finish
 sem.ClearStatusLine(0)
-if trackMag > 0:    sem.RestoreLowDoseParams("R")                            # restore record mag before script just in case
+if trackMag > 0:
+    sem.RestoreLowDoseParams("R")                                                               # restore record mag before script just in case
 sem.TiltTo(0)
 sem.SetDefocus(focus0)
 sem.SetImageShift(0, 0)
@@ -1244,7 +1452,7 @@ if delFinalStack:
     for target in targets:
         if checkFrames(target["tsfile"]):
             os.remove(target["tsfile"])
-            log("NOTE: " + target["tsfile"] + " was deleted. Please use saved frames to generate the tilt series.")
+            log(f"NOTE: {target['tsfile']} was deleted. Please use saved frames to generate the tilt series.")
 else:
     if sortByTilt or binFinalStack > 1:
         for target in targets:
@@ -1256,8 +1464,8 @@ else:
 totalTime = round(sem.ReportClock() / 60, 1)
 perTime = round(totalTime / len(position), 1)
 if recoverInput == 1:
-    perTime = "since recovery: " + str(perTime)
+    perTime = f"since recovery: {perTime}"
 log(datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
-log("##### All tilt series completed in " + str(totalTime) + " min (" + str(perTime) + " min per tilt series) #####", color=3, style=1)
+log(f"##### All tilt series completed in {totalTime} min ({perTime} min per tilt series) #####", color=3, style=1)
 sem.SaveLog()
 sem.Exit()

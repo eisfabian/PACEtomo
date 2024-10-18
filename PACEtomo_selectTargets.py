@@ -5,30 +5,37 @@
 #               More information at http://github.com/eisfabian/PACEtomo
 # Author:       Fabian Eisenstein
 # Created:      2021/04/19
-# Revision:     v1.8.1
-# Last Change:  2024/06/13: fixed wrong stage coords after resetting image shift
+# Revision:     v1.9.0
+# Last Change:  2024/09/17: fixed drawing of montage dims when starting GUI
 # ===================================================================
 
 ############ SETTINGS ############ 
 
-guidance        = True        # when set to False, pop-up windows with guidance are kept minimal and keyboard shortcuts are used instead
+guidance        = True      # when set to False, pop-up windows with guidance are kept minimal and keyboard shortcuts are used instead
 
-targetByShift   = False        # ask to enter image shifts instead of dragging manually
+targetByShift   = False     # ask to enter image shifts instead of dragging manually
 
-targetPattern   = False        # regular pattern of targets (holey support film)
-alignToP        = False        # refine vectors by aligning to hole reference in buffer P
+targetPattern   = False     # regular pattern of targets (holey support film)
+alignToP        = False     # refine vectors by aligning to hole reference in buffer P
 size            = 1         # size of collection pattern (1: 3x3, 2: 5x5, 3: 7x7, ...)
 
-drawBeam        = True        # draws navigator item representing beam diameter
+drawBeam        = True      # draws navigator item representing beam diameter
 beamDiameter    = 0         # beam diameter [microns] (if 0, ReportIlluminatedArea will be used, which is only available on some Thermo Scientific microscopes)
 maxTilt         = 60        # tilt angle [degrees] to calculate stretching of beam perpendicular to tilt axis
 
 # Advanced settings
 sampleName      = ""        # optional prefix for all files created
-useSearch       = False        # use Search mode instead of View mode to find targets by dragging
+useSearch       = False     # use Search mode instead of View mode to find targets by dragging
 vecA            = (0, 0)    # vectors for grid pattern [microns specimen shift] are determined automatically...
 vecB            = (0, 0)    # ...only change if you want to setup pattern without alignToP reference
 patternRot      = 0         # rotation of pattern grid relative to tilt axis (used for filling a polygon with points)
+
+# Draw FOV for montage TS acquisition (visual only)
+tgtMontage      = False     # draws FOV of montage instead of beam ellipse
+tgtMntSize      = 1         # size of montage pattern (1: 3x3, 2: 5x5, 3: 7x7, ...)
+tgtMntOverlap   = 0.05      # montage tile overlap as fraction of shorter camera dimension
+
+debug           = False     # Enables additional output and plots for a few processes (e.g. measureGeo, vecByXCorr)
 
 ########## END SETTINGS ########## 
 
@@ -98,8 +105,14 @@ def parseTargets(targetFile):
     for i in range(len(targets)):
         if "tgtfile" not in targets[i].keys(): targets[i]["tgtfile"] = None
         if "tsfile" not in targets[i].keys() or sem.DoesFileExist(targets[i]["tsfile"]) == 0: targets[i]["tsfile"] = None
-        targets[i]["SSX"] = float(targets[i]["SSX"])
-        targets[i]["SSY"] = float(targets[i]["SSY"])
+        if "stageX" in targets[i].keys():
+            targets[i]["stageX"] = float(targets[i]["stageX"])
+            targets[i]["stageY"] = float(targets[i]["stageY"])
+        if "SSX" in targets[i].keys():
+            targets[i]["SSX"] = float(targets[i]["SSX"])
+            targets[i]["SSY"] = float(targets[i]["SSY"])
+        elif "stageX" in targets[i].keys():                         # if SS coords are missing but stage coords are present, calc SS coords
+            targets[i]["SSX"], targets[i]["SSY"] = s2ssMatrix @ np.array([targets[i]["stageX"] - targets[0]["stageX"], targets[i]["stageY"] - targets[0]["stageY"]])
         if "skip" not in targets[i].keys() or targets[i]["skip"] == "False": 
             targets[i]["skip"] = False 
         else: 
@@ -110,7 +123,7 @@ def parseTargets(targetFile):
             targets[i]["SPACEscore"] = None
 
     if savedRun == []: savedRun = False
-    log("NOTE: Found " + str(len(targets)) + " targets in " + os.path.basename(targetFile) + ".")
+    log(f"NOTE: Found {len(targets)} targets in {os.path.basename(targetFile)}.")
     return targets, savedRun, resume, settings, geoPoints
 
 def writeTargets(targetFile, targets, geoPoints=[], savedRun=False, resume={"sec": 0, "pos": 0}, settings={}):
@@ -170,7 +183,7 @@ def saveNewTarget(targetFile, targetNo, target):
     output += "skip = False" + 2 * "\n"
     with open(targetFile, "a") as f:
         f.write(output)
-    log("Target " + str(targetNo).zfill(3) + " (" + userName + "_tgt_" + str(targetNo).zfill(3) + ".mrc) with image shifts " + str(round(target["SSX"], 3)) + ", " + str(round(target["SSY"], 3)) + " was added.")
+    log(f"Target {str(targetNo).zfill(3)} ({userName}_tgt_{str(targetNo).zfill(3)}.mrc) with image shifts {round(target['SSX'], 3)}, {round(target['SSY'], 3)} was added.")
 
 def parseNav(navFile):
     with open(navFile) as f:
@@ -196,7 +209,7 @@ def parseNav(navFile):
             newItem[col[0]] = [val for val in col[2:]]
         else:
             header.append(line)
-    if "Item" in newItem.keys():    #append last target
+    if "Item" in newItem.keys():                                    #append last target
         items.append(newItem)
     return header, items
 
@@ -212,7 +225,7 @@ def drag():
     if guidance:
         userConfirm = sem.YesNoBox("\n".join(["PREVIEW?", "", "Do you want to take a preview image here?"]))
     else:
-        userConfirm = 1                                         # default to preview unless <v> key is pressed within one second after <b>
+        userConfirm = 1                                             # default to preview unless <v> key is pressed within one second after <b>
         for i in range(10):
             if sem.KeyBreak("v"):
                 userConfirm = 0
@@ -226,7 +239,7 @@ def drag():
             if guidance: 
                 userRefine = sem.YesNoBox("\n".join(["REFINE?", "", "Do you want to refine the position at this mag?"]))           
             else: 
-                userRefine = 0                                         # default to no refine unless <r> key is pressed within one second
+                userRefine = 0                                      # default to no refine unless <r> key is pressed within one second
                 log("NOTE: Please immediately press the <r> key to refine the position at this mag!")
                 for i in range(10):
                     if sem.KeyBreak("r"):
@@ -247,11 +260,11 @@ def drag():
 
 def loopAddTargets():
     global pointRefine, userInput, targetNo
-    pointNo = 1                                                 # counter for points in group
+    pointNo = 1                                                     # counter for points in group
     addTargets = 1
     while addTargets == 1:
         userInput = 0
-        userSkip = 1                                            # initialize as 1 to not apply shifts in case of redo
+        userSkip = 1                                                # initialize as 1 to not apply shifts in case of redo
         while userInput == 0:
             if targetByShift or (pointRefine == 1 and userSkip == 1):
                 if targetByShift:
@@ -259,7 +272,7 @@ def loopAddTargets():
                     shiftx = sem.EnterDefaultedNumber(0, 1, "Enter X shift:")
                     shifty = sem.EnterDefaultedNumber(0, 1, "Enter Y shift:")
                 else:
-                    sem.SetImageShift(0, 0)                            # use 0,0 instead of ISX0,ISY0 to account for user shift of first target away from point
+                    sem.SetImageShift(0, 0)                         # use 0,0 instead of ISX0,ISY0 to account for user shift of first target away from point
                     shiftx, shifty = coordsRefine[pointNo]
                 sem.ImageShiftByMicrons(shiftx, shifty)
             if useSearch: 
@@ -272,7 +285,7 @@ def loopAddTargets():
                     userSkip = sem.YesNoBox("\n".join(["SKIP?", "", "Do you want to skip this point of the group?"]))
                     if userSkip == 1:
                         pointNo += 1
-                        if pointNo >= len(coordsRefine):                # disable pointRefine when last point of a group is skipped
+                        if pointNo >= len(coordsRefine):            # disable pointRefine when last point of a group is skipped
                             pointRefine = 0
                             addTargets = sem.YesNoBox("All points of the selected group have been viewed. Do you want to add another target manually?")
                 else:
@@ -305,7 +318,10 @@ def loopAddTargets():
         saveNewTarget(tgtsFilePath, targetNo, target)
 
         if drawBeam:
-            beamPolygons.append(drawBeamPolygon(target["stageX"], target["stageY"], stageZ, beamR, maxTilt))
+            if not tgtMontage:
+                beamPolygons.append(drawBeamPolygon(target["stageX"], target["stageY"], stageZ, beamR, maxTilt))
+            else:
+                beamPolygons.append(drawBeamRectangle(target["stageX"], target["stageY"], stageZ))
 
         if pointRefine == 1 and pointNo >= len(coordsRefine):
             addTargets = sem.YesNoBox("All points of the selected group have been viewed. Do you want to add another target manually?")
@@ -349,6 +365,18 @@ def drawBeamPolygon(stageX, stageY, stageZ, radius, angle):
 
     return polyID
 
+def drawBeamRectangle(stageX, stageY, stageZ):
+    mont_dims = np.array(recDims) * (tgtMntSize * 2 + 1) * (1 - tgtMntOverlap) 
+    ptsX = [float(stageX - mont_dims[0] / 2), float(stageX + mont_dims[0] / 2), float(stageX + mont_dims[0] / 2), float(stageX - mont_dims[0] / 2), float(stageX - mont_dims[0] / 2)]
+    ptsY = [float(stageY - mont_dims[1] / 2), float(stageY - mont_dims[1] / 2), float(stageY + mont_dims[1] / 2), float(stageY + mont_dims[1] / 2), float(stageY - mont_dims[1] / 2)]
+
+    sem.SetVariable('ptsX', listToSEMarray(ptsX))
+    sem.SetVariable('ptsY', listToSEMarray(ptsY))
+    polyID = int(sem.AddStagePointsAsPolygon("ptsX", "ptsY", stageZ))
+    sem.ChangeItemColor(polyID, 3)
+
+    return polyID
+
 ##########
 # Source: https://github.com/Sabrewarrior/normxcorr2-python/blob/master/normxcorr2.py
 def autoXcorr(image):
@@ -360,7 +388,6 @@ def autoXcorr(image):
 
 def vecByXcorr(diameter):
     # devSettings
-    updatePlot      = False     # show plot after finding each peak
     maxBinning      = 10        # maximum binning of input image (depends on pixel size and diameter)
     pixPerHole      = 20        # desired amount of pixels per hole diameter
     searchRangeFac  = 2         # how many times the radius should be excluded around a found peak
@@ -391,15 +418,28 @@ def vecByXcorr(diameter):
 
     correlation = autoXcorr(image)
 
+    if debug:
+        log("DEBUG: vecVyXcorr settings:")
+        log(f"{maxBinning}, {pixPerHole}, {searchRangeFac}, {cropRangeFac}, {maxPeaks}, {accuracy}", color=1)
+        log(f"binning: {binning}", color=1)
+        log(f"ImageProperties: {imgProp}", color=1)
+        log(f"searchRadius: {searchRadius}", color=1)
+        
+        fig2, ax = plt.subplots(2, 1)
+        ax[0].imshow(image)
+        ax[1].imshow(correlation)
+        fig2.show()
+
     peaks = []
     while len(peaks) < maxPeaks:
         peaks.append(np.unravel_index(np.argmax(correlation), correlation.shape))
         rangeStartX = max(0, peaks[-1][0] - searchRadius)
         rangeStartY = max(0, peaks[-1][1] - searchRadius)
         correlation[rangeStartX:(rangeStartX + 2 * searchRadius), rangeStartY:(rangeStartY + 2 * searchRadius)] = 0
-        if updatePlot:
-            imgplot = plt.imshow(correlation)
-            plt.show()
+        if debug:                                                   # show plot after finding each peak
+            fig2 = plt.figure()
+            plt.imshow(correlation)
+            fig2.show()
 
     peaks = np.array(peaks) + np.array([imgStartX, imgStartY])
     success = False
@@ -416,12 +456,16 @@ def vecByXcorr(diameter):
             return success, np.zeros(2), np.zeros(2)
         vecA = peaks[i] - peaks[0]
 
+    log(f"DEBUG: preliminary vecA: {vecA}")
+
     shortest = 1
     for i in range(1, len(peaks)):
         vecB = peaks[i] - peaks[0]
         if np.linalg.norm(vecB) < np.linalg.norm(vecA) and np.linalg.norm(vecB) > 2 * searchRadius:
             vecA = vecB
             shortest = i
+
+    log(f"DEBUG: shortest vecA: {vecA}")
 
     ptID1 = int(sem.AddImagePosAsNavPoint(buffer, peaks[shortest][1], peaks[shortest][0], 0))
 
@@ -432,6 +476,8 @@ def vecByXcorr(diameter):
             ptID2 = int(sem.AddImagePosAsNavPoint(buffer, peaks[i][1], peaks[i][0], 0))
             success = True
             break
+
+    log(f"DEBUG: orthogonal vecB: {vecB}")
 
     if not success:
         log("WARNING: Failed to find orthogonal vectors for pattern!")
@@ -446,37 +492,43 @@ def vecByXcorr(diameter):
         vecA = s2ssMatrix @ (np.array([x1, y1]) - np.array([x0, y0]))
         vecB = s2ssMatrix @ (np.array([x2, y2]) - np.array([x0, y0]))
         if np.linalg.norm(vecA) > diameter:
-            if vecA[1] < 0: vecA = -vecA                                # make vectors face towards y > 0
+            if vecA[1] < 0: vecA = -vecA                            # make vectors face towards y > 0
             if vecB[1] < 0: vecB = -vecB
             log("NOTE: Orthogonal vectors for pattern were found!")
         else:
             log("WARNING: Failed to find appropiately sized vectors for pattern!")
             success = False
-        sem.DeleteNavigatorItem(int(ptID2))
-        sem.DeleteNavigatorItem(int(ptID1))
-        sem.DeleteNavigatorItem(int(ptID0))
+        if not debug:
+            sem.DeleteNavigatorItem(int(ptID2))
+            sem.DeleteNavigatorItem(int(ptID1))
+            sem.DeleteNavigatorItem(int(ptID0))
 
-    if vecB[1] > vecA[1]:                                            # ensure vecA has larger off tilt axis shift
+    if vecB[1] > vecA[1]:                                           # ensure vecA has larger off tilt axis shift
         return success, vecB, vecA
     else:
         return success, vecA, vecB
 
 def log(text, color=0, style=0):
+    if text.startswith("DEBUG:") and not debug:
+        return
     if text.startswith("NOTE:"):
         color = 4
     elif text.startswith("WARNING:"):
         color = 5
     elif text.startswith("ERROR:"):
-        color = 3
+        color = 2
         style = 1 
+    elif text.startswith("DEBUG:"):
+        color = 1
+
     if sem.IsVersionAtLeast("40200", "20240205"):
         sem.SetNextLogOutputStyle(style, color)
-    sem.Echo(text)
+    sem.EchoBreakLines(text)
 
 def gui(targetFile):
     ##########
     # Source: https://stackoverflow.com/a/25023944
-    class DragDropListbox(tk.Listbox):                                    # listbox with drag'n'drop reordering of entries
+    class DragDropListbox(tk.Listbox):                              # listbox with drag'n'drop reordering of entries
         def __init__(self, master, **kw):
             kw['selectmode'] = tk.SINGLE
             tk.Listbox.__init__(self, master, kw)
@@ -513,10 +565,10 @@ def gui(targetFile):
         def enter(self, event=None):
             x = self.widget.winfo_rootx() + 25
             y = self.widget.winfo_rooty() + 30
-            self.tw = tk.Toplevel(self.widget)                            # creates a toplevel window
-            self.tw.wm_overrideredirect(True)                            # leaves only the label and removes the app window
+            self.tw = tk.Toplevel(self.widget)                      # creates a toplevel window
+            self.tw.wm_overrideredirect(True)                       # leaves only the label and removes the app window
             self.tw.wm_geometry("+%d+%d" % (x, y))
-            labelTT = tk.Label(self.tw, text=self.text, justify='left', background='#ffffff', relief='solid', borderwidth=1, font=("Courier","10"))
+            labelTT = tk.Label(self.tw, text=self.text, justify="left", borderwidth=1, background="#ffffff", relief="solid", font=("Courier","10"))
             labelTT.pack(ipadx=1)
 
         def close(self, event=None):
@@ -530,17 +582,17 @@ def gui(targetFile):
             listbox.insert(i, " ".join([str(i+1).zfill(3).ljust(5), str(targets[i]["tgtfile"]).ljust(len(str(targets[i]["tgtfile"])) + 3), str(targets[i]["tsfile"]).ljust(len(str(targets[i]["tsfile"])) + 2), str(round(float(targets[i]["SSX"]), 2)).rjust(6), str(round(float(targets[i]["SSY"]), 2)).rjust(6), str(targets[i]["SPACEscore"]).rjust(6), str(targets[i]["skip"])]))
 
     def plotTargets():
-        colors = ["#5689bf" if not val["skip"] else "#aaaaaa" for val in targets]            # setup color array
-        colors[0] = "#c92b27"                                        # color tracking TS
+        colors = ["#5689bf" if not val["skip"] else "#aaaaaa" for val in targets] # setup color array
+        colors[0] = "#c92b27"                                       # color tracking TS
         legend_elements = [matplotlib.lines.Line2D([0], [0], color="#c92b27", label="tracking", lw="2"), matplotlib.lines.Line2D([0], [0], color="#5689bf", label="acquire", lw="2"), matplotlib.lines.Line2D([0], [0], color="#cccccc", label="skip", lw="2"), matplotlib.lines.Line2D([0], [0], color="#fab182", label="geo point", lw="2")]
         plt.legend(handles=legend_elements)
-        if swapXY:                                            # set up axis to fit SerialEM view
+        if swapXY:                                                  # set up axis to fit SerialEM view
             xval = np.array([float(val["SSY"]) for val in targets])
             yval = np.array([float(val["SSX"]) for val in targets])
             plt.axvline(x=0, color="#cccccc", ls="--")
             geoXval = np.array([val["SSY"] for val in geoPoints])
             geoYval = np.array([val["SSX"] for val in geoPoints])
-            #dims = recDims
+
             if loadedMap is not None:
                 shownMap = loadedMap
                 shownExtent = mapExtent
@@ -550,7 +602,7 @@ def gui(targetFile):
             plt.axhline(y=0, color="#cccccc", ls="--")
             geoXval = np.array([val["SSX"] for val in geoPoints])
             geoYval = np.array([val["SSY"] for val in geoPoints])
-            #dims = [recDims[1], recDims[0]]
+
             if loadedMap is not None:
                 shownMap = np.swapaxes(loadedMap, 0, 1)
                 shownExtent = [mapExtent[3], mapExtent[2], mapExtent[1], mapExtent[0]]
@@ -579,9 +631,11 @@ def gui(targetFile):
             plt.gca().add_artist(rect)
         if geoPoints != []:
             plt.scatter(geoXval, geoYval, marker="o", color="#fab182", s=100, picker=False)
+            for g in range(len(geoXval)):
+                plt.gca().annotate("  " + str(g + 1), (geoXval[g], geoYval[g]), color="#fab182")
         plt.margins(0.25, 0.25)
         plt.axis("equal")
-        if showBeam:                                            # plot circles with plot size in microns (beamdiameter)
+        if showBeam:                                                # plot circles with plot size in microns (beam diameter)
             if swapXY:
                 height = 2 * 2 * beamR * np.cos(np.radians(maxTilt))
                 width = 2 * 2 * beamR
@@ -593,13 +647,13 @@ def gui(targetFile):
                     color = "#aaaaaa"
                 else:
                     color = "#ffd700"
-                ellipse = Ellipse((xval[t], yval[t]), width, height, color=color, fill=False, linewidth=2)
+                ellipse = Ellipse((xval[t], yval[t]), width, height, fill=False, linewidth=2, color=color)
                 plt.gca().add_artist(ellipse)
             for g, geo in enumerate(geoPoints):
-                circle = Circle((geoXval[g], geoYval[g]), beamR, color="#fab182", fill=False, linewidth=2)
+                circle = Circle((geoXval[g], geoYval[g]), beamR, fill=False, linewidth=2, color="#fab182")
                 plt.gca().add_artist(circle)
 
-        for i in range(len(targets)):                                    # add target numbers to plot
+        for i in range(len(targets)):                               # add target numbers to plot
             plt.annotate(str(i + 1).zfill(3), (xval[i], yval[i]), ha="center", va="center")        
 
         if showScore:
@@ -613,44 +667,48 @@ def gui(targetFile):
     def realignTrack(rough=False, wiggle=0.5):
         global stageX, stageY, stageZ, SSX0, SSY0, ISX0, ISY0
         stageX, stageY, stageZ = sem.ReportStageXYZ()
-        log("Stage: " + str(stageX) + ", " + str(stageY))
+        log(f"DEBUG: Stage: {stageX}, {stageY}")
         if "ISX0" in globals():
             sem.SetImageShift(ISX0, ISY0)
-            stageX, stageY = np.array([stageX, stageY]) + ss2sMatrix @ np.array([SSX0, SSY0])    # consider IS in wiggle to avoid unnecessary realigns
-        log("Stage + IS: " + str(stageX) + ", " + str(stageY))
-        log("Track coords: " + str(targets[0]["stageX"]) + ", " + str(targets[0]["stageY"]))
-        if abs(stageX - float(targets[0]["stageX"])) > wiggle or abs(stageY - float(targets[0]["stageY"])) > wiggle or "ISX0" not in globals():    # test if stage was moved or tracking target was changed (with 0.5 micron wiggle room)
+            stageX, stageY = np.array([stageX, stageY]) + ss2sMatrix @ np.array([SSX0, SSY0]) # consider IS in wiggle to avoid unnecessary realigns
+        log(f"DEBUG: Stage + IS: {stageX}, {stageY}")
+        log(f"DEBUG: Track coords: {targets[0]['stageX']}, {targets[0]['stageY']}")
+        if abs(stageX - float(targets[0]["stageX"])) > wiggle or abs(stageY - float(targets[0]["stageY"])) > wiggle or "ISX0" not in globals(): # test if stage was moved or tracking target was changed (with 0.5 micron wiggle room)
             log("Realigning to tracking target...")
             if rough:
                 if targets[0]["viewfile"] is not None:
                     mapIndex = int(sem.NavIndexWithNote(targets[0]["viewfile"]))
+                    log("DEBUG: Loading View reference from nav.")
                 elif targets[0]["tgtfile"] is not None:
-                    mapIndex = int(sem.NavIndexWithNote(targets[0]["tgtfile"].rsplit(".mrc", 1)[0] + "_view.mrc"))    # find map index of tracking tilt series view image from file name
+                    mapIndex = int(sem.NavIndexWithNote(targets[0]["tgtfile"].rsplit(".mrc", 1)[0] + "_view.mrc")) # find map index of tracking tilt series view image from file name
+                    log("DEBUG: Loading View reference from 'tgtfile' name.")
                 else:
-                    mapIndex = int(sem.NavIndexWithNote(userName + "_tgt_001_view.mrc"))    # use tgt_001_view in case tgtfile does not exist
+                    mapIndex = int(sem.NavIndexWithNote(userName + "_tgt_001_view.mrc")) # use tgt_001_view in case tgtfile does not exist
+                    log("DEBUG: Default to loading 'tgt_001_view' as reference.")
                 if mapIndex == 0:
-                    mapIndex = int(sem.NavIndexWithNote(userName + "_tgts.txt"))    # use tgt entry in case no view file exists
+                    mapIndex = int(sem.NavIndexWithNote(userName + "_tgts.txt")) # use tgt entry in case no view file exists
+                    log("DEBUG: Default to using map of tracking target in nav as reference.")
             else:
                 mapIndex = int(sem.NavIndexWithNote(userName + "_tgts.txt"))
+                log("DEBUG: Using tracking target in nav as reference.")
             if mapIndex == 0:
                 log("ERROR: No map found at tracking target. Can't run realign to item.")
                 return False
             try:
-                sem.RealignToOtherItem(mapIndex, 1)                            # realign to tracking TS
+                log("DEBUG: Running SerialEM RealignToItem routine.")
+                sem.RealignToOtherItem(mapIndex, 1)                 # realign to tracking TS
             except:
                 # Try to catch "The only available map image is too small to align to" error in SerialEM
                 if rough and targets[0]["tgtfile"] is not None:
                     mapIndex = int(sem.NavIndexWithNote(userName + "_tgts.txt"))
                     log("WARNING: Realignment failed. Trying again with preview image...")
-                    sem.RealignToOtherItem(mapIndex, 1)                        # realign to tracking TS
+                    sem.RealignToOtherItem(mapIndex, 1)             # realign to tracking TS
                 else:
                     log("WARNING: Realignment failed. Trying again with AlignTo...")
                     sem.LoadOtherMap(mapIndex)
                     buffer = sem.ReportCurrentBuffer()
                     sem.AcquireToMatchBuffer(buffer)
                     sem.AlignTo(buffer)
-                    #log("ERROR: Realignment failed.")
-                    #return False
 
             sem.GoToLowDoseArea("R")
             stageX, stageY, stageZ = sem.ReportStageXYZ()
@@ -666,10 +724,10 @@ def gui(targetFile):
         dblclick = event.mouseevent.dblclick
         label = event.artist.get_label()
         if label == "targets":
-            if button is MouseButton.RIGHT:                                # right click to skip target
+            if button is MouseButton.RIGHT:                         # right click to skip target
                 skip(ind)
 
-            if button is MouseButton.LEFT:                                # left click to select target in list
+            if button is MouseButton.LEFT:                          # left click to select target in list
                 listbox.selection_clear(0, tk.END)
                 listbox.selection_set(ind)
                 listbox.see(ind)
@@ -680,9 +738,9 @@ def gui(targetFile):
                     if not success:
                         tk.messagebox.showwarning(title="File not found", message="No tilt series or target file was found for this target!")
 
-    def onClick(event):                                            # click in plot to add point
+    def onClick(event):                                             # click in plot to add point
         button = event.button
-        if button is MouseButton.MIDDLE:                                # middle click to add geo point
+        if button is MouseButton.MIDDLE:                            # middle click to add geo point
             if swapXY:
                 geoPoints.append({"SSX": round(event.ydata, 3), "SSY": round(event.xdata, 3)})
             else:
@@ -703,7 +761,7 @@ def gui(targetFile):
         plt.gca().set_ylim([ylim[0] * scale_factor, ylim[1] * scale_factor])
         fig.canvas.draw()
 
-    def openTgt(box=True):                                            # open preview map with default application
+    def openTgt(box=True):                                          # open preview map with default application
         ind = listbox.curselection()[0]
         if targets[ind]["tgtfile"] is not None:
             os.system("start " + os.path.join(curDir, targets[ind]["tgtfile"]))
@@ -716,7 +774,7 @@ def gui(targetFile):
                 tk.messagebox.showwarning(title="File not found", message="Target file was not found!")
             return False
 
-    def openTs(box=True):                                            # open tilt series if it exists
+    def openTs(box=True):                                           # open tilt series if it exists
         ind = listbox.curselection()[0]
         if targets[ind]["tsfile"] is not None:
             os.system("start " + os.path.join(curDir, targets[ind]["tsfile"]))
@@ -726,7 +784,7 @@ def gui(targetFile):
                 tk.messagebox.showwarning(title="File not found", message="Tilt series file was not found!")
             return False
 
-    def makeTrack():                                            # change the tracking target
+    def makeTrack():                                                # change the tracking target
         nonlocal targets, targetsOrig, geoPoints
         ind = listbox.curselection()[0]
         if targets[ind]["tgtfile"] is None:
@@ -735,57 +793,57 @@ def gui(targetFile):
             confirm = tk.messagebox.askyesno(title="Confirmation", message="\n".join(["This will save all changes and cause additional exposures of the new tracking target.", "", " Do you want to proceed?"]))
             if not confirm:
                 return
-            if not realignTrack(rough=True):                            # realign to view map of old tracking area
+            if not realignTrack(rough=True):                        # realign to view map of old tracking area
                 log("ERROR: Realignment failed. Cannot change tracking target.")
                 return
-            mapIndex = int(sem.NavIndexWithNote(userName + "_tgts.txt"))                # find index of old tracking map and change acquire state and navNote
+            mapIndex = int(sem.NavIndexWithNote(userName + "_tgts.txt")) # find index of old tracking map and change acquire state and navNote
             sem.SetItemAcquire(mapIndex, 0)
             sem.ChangeItemNote(mapIndex, targets[0]["tgtfile"])
 
             SSXoffset = targets[ind]["SSX"]
             SSYoffset = targets[ind]["SSY"]
-            for i in range(len(targets)):                                # make new tracking target center of shifts
+            for i in range(len(targets)):                           # make new tracking target center of shifts
                 targets[i]["SSX"] -= SSXoffset
                 targets[i]["SSY"] -= SSYoffset
-            targets.insert(0, targets.pop(ind))                            # move target to start of list
+            targets.insert(0, targets.pop(ind))                     # move target to start of list
             targets[0]["skip"] = False
 
-            mapIndex = int(sem.NavIndexWithNote(targets[0]["tgtfile"]))                # find index of new tracking map and change acquire state and navNote
+            mapIndex = int(sem.NavIndexWithNote(targets[0]["tgtfile"])) # find index of new tracking map and change acquire state and navNote
             sem.SetItemAcquire(mapIndex)
             sem.ChangeItemNote(mapIndex, userName + "_tgts.txt")
 
             viewIndex = int(sem.NavIndexWithNote(targets[0]["tgtfile"].rsplit(".mrc", 1)[0] + "_view.mrc"))
-            if viewIndex > 0:                                    # if view map exists already, align to new tracking target
+            if viewIndex > 0:                                       # if view map exists already, align to new tracking target
                 realignTrack()
-            else:                                            # if not, make view map
-                sem.ImageShiftByMicrons(SSXoffset, SSYoffset)                    # apply SSoffsets and take temp view map of new tracking target
+            else:                                                   # if not, make view map
+                sem.ImageShiftByMicrons(SSXoffset, SSYoffset)       # apply SSoffsets and take temp view map of new tracking target
                 sem.V()
                 sem.OpenNewFile(targets[0]["tgtfile"].rsplit(".mrc", 1)[0] + "_view_temp.mrc")
                 sem.S("A")
                 tempIndex = int(sem.NewMap(0, targets[0]["tgtfile"].rsplit(".mrc", 1)[0] + "_view_temp.mrc"))
                 sem.CloseFile()
-                realignTrack()                                    # move stage and realign to new tracking target
+                realignTrack()                                      # move stage and realign to new tracking target
                 sem.DeleteNavigatorItem(tempIndex)
-                sem.V()                                        # take view map of new tracking target
+                sem.V()                                             # take view map of new tracking target
                 sem.OpenNewFile(targets[0]["tgtfile"].rsplit(".mrc", 1)[0] + "_view.mrc")
                 sem.S("A")
                 sem.NewMap(0, targets[0]["tgtfile"].rsplit(".mrc", 1)[0] + "_view.mrc")
                 sem.CloseFile()
                 sem.GoToLowDoseArea("R")
 
-            if geoPoints != []:                                    # shift geoPoints accordingly
+            if geoPoints != []:                                     # shift geoPoints accordingly
                 for i in range(len(geoPoints)):
                     geoPoints[i]["SSX"] -= SSXoffset
                     geoPoints[i]["SSY"] -= SSYoffset
 
-            targetsOrig = copy.deepcopy(targets)                            # make new backup copy for reset
-            saveFile(ask=False)                                    # save changes to file
+            targetsOrig = copy.deepcopy(targets)                    # make new backup copy for reset
+            saveFile(ask=False)                                     # save changes to file
             updateList()
             plt.clf()
             plotTargets()
             fig.canvas.draw()
 
-    def skip(ind=None, skip_all=False):                                        # skip selected target
+    def skip(ind=None, skip_all=False):                             # skip selected target
         if skip_all:
             log("Set all targets to be skipped.")
             for t in range(1, len(targets)):
@@ -819,10 +877,12 @@ def gui(targetFile):
     def checkForMap():
         global mapLabel
         log("Saving navigator file...")
-        sem.SaveNavigator()                                        # parse nav file to get polygon coords
+        if sem.ReportIfNavOpen() < 2:
+            sem.OKBox("Please select where to save the navigator!")
+        sem.SaveNavigator()                                         # parse nav file to get polygon coords
         navFile = sem.ReportNavFile()
         navHeader, navItems = parseNav(navFile)
-        trackID = int(sem.NavIndexWithNote(os.path.basename(tgtsFilePath).split("_tgts")[0] + "_tgts.txt"))    # find index of target 1 even if script runs on run file
+        trackID = int(sem.NavIndexWithNote(os.path.basename(tgtsFilePath).split("_tgts")[0] + "_tgts.txt")) # find index of target 1 even if script runs on run file
         recMag = 999
         if "MapMagInd" in navItems[trackID - 1].keys():
             recMag = int(navItems[trackID - 1]["MapMagInd"][0])
@@ -836,7 +896,7 @@ def gui(targetFile):
             if int(item["MapID"][0]) == trackDrawnID and trackDrawnID > 0:
                 drawnOn = [{"id": i + 1, "label": item["Item"], "area": 1}]
                 break
-            if int(item["MapMagInd"][0]) >= recMag or int(item["MapMagInd"][0]) <= 16:    # <=16 is LM on Krios and cryoARM
+            if int(item["MapMagInd"][0]) >= recMag or int(item["MapMagInd"][0]) <= 16: # <=16 is LM on Krios and cryoARM
                 continue
             if len(item["PtsX"]) == 1:
                 continue
@@ -844,7 +904,7 @@ def gui(targetFile):
             polygon = matplotlib.path.Path(vertices)
             if polygon.contains_points([(targets[0]["stageX"], targets[0]["stageY"])])[0]:
                 bbox = polygon.get_extents()
-                area = bbox.bounds[2] * bbox.bounds[3] #(bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
+                area = bbox.bounds[2] * bbox.bounds[3]
                 drawnOn.append({"id": i + 1, "label": item["Item"], "area": area})
         if len(drawnOn) > 0:
             drawnOn = sorted(drawnOn, key=lambda d: d["area"], reverse=True)
@@ -883,7 +943,7 @@ def gui(targetFile):
             plotTargets()
             fig.canvas.draw()            
 
-    def saveOrder():                                            # save order of listbox (after manual reordering by dragging)
+    def saveOrder():                                                # save order of listbox (after manual reordering by dragging)
         nonlocal targets
         order = [int(entry.split(" ", 1)[0]) - 1 for entry in listbox.get(0, tk.END)]
         if order[0] != 0:
@@ -895,18 +955,18 @@ def gui(targetFile):
         plotTargets()
         fig.canvas.draw()
 
-    def moreTargets():                                            # append new targets (closes GUI)
+    def moreTargets():                                              # append new targets (closes GUI)
         global userInput, pointRefine, reopen, SSX0, SSY0
         confirm = tk.messagebox.askyesno(title="Confirmation", message="\n".join(["This will save all changes and start the procedure to add extra targets by dragging.", "", " Do you want to proceed?"]))
         if not confirm:
             return
-        saveFile(ask=False)                                        # save changes to file
+        saveFile(ask=False)                                         # save changes to file
         closeGUI()
         if not realignTrack():
             log("ERROR: Realignment failed. Cannot add target.")
             reopen = True    
             return
-        if drawBeam:                                            # make beam polygons visible
+        if drawBeam:                                                # make beam polygons visible
             for polyID in beamPolygons:
                 sem.ChangeItemDraw(polyID, 1)
         log("Adding targets...", style=1)        
@@ -914,87 +974,95 @@ def gui(targetFile):
         pointRefine = 0
         loopAddTargets()
         sem.SetImageShift(ISX0, ISY0)
-        reopen = True                                            # reopen GUI after finishing
+        reopen = True                                               # reopen GUI after finishing
         return
 
     def saveViews():
-        btnSaveViews.grid_forget()                                    # replace view button with progress bar
+        log("DEBUG: Showing progress bar...")
+        btnSaveViews.grid_forget()                                  # replace view button with progress bar
         progressBar.grid(column=1, row=4, sticky=tk.W, pady=6)
         disabledWidgets = [btnSave, btnReset, btnMakeTrack, btnLoadMap, btnAddTargets, btnReorder, btnMeasureGeometry]
         keepDisabled = []
-        for widget in disabledWidgets:                                    # disable buttons that could interfere with measure geometry
-            if widget["state"] == tk.DISABLED:                            # keep already disabled buttons disabled
+        for widget in disabledWidgets:                              # disable buttons that could interfere with measure geometry
+            if widget["state"] == tk.DISABLED:                      # keep already disabled buttons disabled
                 keepDisabled.append(widget)
             else:
                 widget["state"] = tk.DISABLED
-
+        log("DEBUG: Checking if realign to tracking area is necessary...")
         if not realignTrack(rough=True):
             log("ERROR: Realignment failed. Cannot save view images.")
             return
+        log("DEBUG: Changing to Record...")
         sem.GoToLowDoseArea("R")
         for i in range(len(targets)):
             if targets[i]["tgtfile"] is not None:
-                viewName = targets[i]["tgtfile"].rsplit(".mrc", 1)[0] + "_view.mrc"        # if tgtfile is present, retain numbering
+                viewName = targets[i]["tgtfile"].rsplit(".mrc", 1)[0] + "_view.mrc" # if tgtfile is present, retain numbering
             else:
-                viewName = userName + "_tgt_" + str(i + 1).zfill(3) + "_view.mrc"        # if not, renumber
+                viewName = userName + "_tgt_" + str(i + 1).zfill(3) + "_view.mrc" # if not, renumber
             viewIndex = int(sem.NavIndexWithNote(viewName))
-            if viewIndex == 0:                                    # take view image if it does not exist
+            if viewIndex == 0:                                      # take view image if it does not exist
+                log("DEBUG: Applying image shift and taking View image...")
                 sem.ImageShiftByMicrons(targets[i]["SSX"], targets[i]["SSY"])
                 sem.V()
+                log("DEBUG: Saving View image...")
                 sem.OpenNewFile(viewName)
                 sem.S("A")
+                log("DEBUG: Making Map from View image...")
                 sem.NewMap(0, viewName)
                 sem.CloseFile()
             else:
+                log("DEBUG: Loading existing View image...")
                 sem.LoadOtherMap(viewIndex)
             targets[i]["viewfile"] = viewName
+            log("DEBUG: Saving snapshot...")
             sem.SnapshotToFile(0, 0, 0, "JPG", "JPG", viewName.rsplit(".mrc", 1)[0] + ".jpg")
+            log("DEBUG: Resetting image shift...")
             sem.GoToLowDoseArea("R")
             sem.SetImageShift(ISX0, ISY0)
-            progressBar["value"] = (i + 1) / len(targets)                        # update progress bar
+            progressBar["value"] = (i + 1) / len(targets)           # update progress bar
             top.update()
-        progressBar.grid_forget()                                    # restore button
+        log("DEBUG: Resetting GUI...")
+        progressBar.grid_forget()                                   # restore button
         btnSaveViews.grid(column=1, row=4, sticky=tk.W, pady=3)
-        for widget in [item for item in disabledWidgets if item not in keepDisabled]:            # reenable interfering buttons
+        for widget in [item for item in disabledWidgets if item not in keepDisabled]: # reenable interfering buttons
             widget["state"] = tk.NORMAL
 
-    def copyAcq():                                                # find nav points set to acquire and replace Note with tgts file
+    def copyAcq():                                                  # find nav points set to acquire and replace Note with tgts file
         copied = 0
         acqItems = []
         for i in range(int(sem.ReportNumTableItems())):
             if sem.ReportItemAcquire(i + 1) == 1:
                 otherItem = sem.ReportOtherItem(i + 1)
                 acqNote = sem.GetVariable("navNote")                            
-                if not acqNote.endswith(".txt"):                        # check if selected nav item already has tgts file
-                    acqItems.append([i + 1, otherItem[1], otherItem[2], otherItem[3]])    # add to list of items to be changed (include stage xyz)
-                elif acqNote.startswith(fileStem):                        # check if tgts file is copy of current tgts file
-                    acqNo = acqNote.rsplit(".txt", 1)[0].rsplit("tgts_p", 1)        # figure out copy number
+                if not acqNote.endswith(".txt"):                    # check if selected nav item already has tgts file
+                    acqItems.append([i + 1, otherItem[1], otherItem[2], otherItem[3]]) # add to list of items to be changed (include stage xyz)
+                elif acqNote.startswith(fileStem):                  # check if tgts file is copy of current tgts file
+                    acqNo = acqNote.rsplit(".txt", 1)[0].rsplit("tgts_p", 1) # figure out copy number
                     if len(acqNo) > 1:
                         acqNo = int(acqNo[-1])
                         if acqNo > copied:
                             copied = acqNo
         for item in acqItems:
             copied += 1
-            targetFileCopy = os.path.join(curDir, fileStem + "_p" + str(copied).zfill(2) + ".txt")    # add stage position number to tgts file name
-            sem.ChangeItemNote(item[0], os.path.basename(targetFileCopy))                # adjust nav note accordingly
+            targetFileCopy = os.path.join(curDir, fileStem + "_p" + str(copied).zfill(2) + ".txt") # add stage position number to tgts file name
+            sem.ChangeItemNote(item[0], os.path.basename(targetFileCopy)) # adjust nav note accordingly
             sem.ChangeItemLabel(item[0], str(1).zfill(3))
-            targetsTemp = copy.deepcopy(targets)                            # make temp deepcopy of targets
+            targetsTemp = copy.deepcopy(targets)                    # make temp deepcopy of targets
             targetsTemp[0]["stageX"] = item[1]
             targetsTemp[0]["stageY"] = item[2]
             groupIndex = int(sem.GetUniqueNavID())
-            for i in range(len(targetsTemp)):                            # add stage position number to ts file names
+            for i in range(len(targetsTemp)):                       # add stage position number to ts file names
                 if "tsfile" in targetsTemp[i].keys():
                     targetsTemp[i]["tsfile"] = userName + "_p" + str(copied).zfill(2) + "_ts_" + str(i + 1).zfill(3) + ".mrc"
-                if i > 0:                                    # if not tracking tgt, add tgt nav point
+                if i > 0:                                           # if not tracking tgt, add tgt nav point
                     stageShift = ss2sMatrix @ np.array([targetsTemp[i]["SSX"], targetsTemp[i]["SSY"]])
                     ptIndex = int(sem.AddStagePosAsNavPoint(targetsTemp[0]["stageX"] + stageShift[0], targetsTemp[0]["stageY"] + stageShift[1], item[3], groupIndex))
-                    #ptIndex = int(sem.AddStagePosAsNavPoint(targetsTemp[0]["stageX"] + ss2sMatrix[0] * targetsTemp[i]["SSX"], targetsTemp[0]["stageY"] + ss2sMatrix[3] * targetsTemp[i]["SSY"], item[3], groupIndex))
                     sem.ChangeItemLabel(ptIndex, str(i + 1).zfill(3))
-            writeTargets(targetFileCopy, targetsTemp, geoPoints, settings=settings)                # write new tgts file for each stage position
+            writeTargets(targetFileCopy, targetsTemp, geoPoints, settings=settings) # write new tgts file for each stage position
         tk.messagebox.showinfo(title="Target file copied", message="The targets file was copied to " + str(copied) + " navigator points!")
-        log("NOTE: Copied tgts file to " + str(copied) + " navigator points!")
+        log(f"NOTE: Copied tgts file to {copied} navigator points!")
 
-    def saveFile(ask=True):                                            # save targets to file
+    def saveFile(ask=True):                                         # save targets to file
         global settingsOrig
         if ask:
             confirm = tk.messagebox.askyesno(title="Confirmation", message="\n".join(["Save changes?", "", "Do you want to save changes and overwrite your targets file?"]))
@@ -1002,28 +1070,28 @@ def gui(targetFile):
                 return
         targetsTemp = copy.deepcopy(targets)
         for i in range(len(targetsTemp)):
-            if targetsTemp[i]["tsfile"] is None:                            # restore tsfile value in case file was not present
+            if targetsTemp[i]["tsfile"] is None:                    # restore tsfile value in case file was not present
                 if targetsTemp[i]["tgtfile"] is not None:
-                    col = targetsTemp[i]["tgtfile"].split("_tgt_")                # if tgtfile is present, retain numbering
+                    col = targetsTemp[i]["tgtfile"].split("_tgt_")  # if tgtfile is present, retain numbering
                     targetsTemp[i]["tsfile"] = col[0] + "_ts_" + col[1]    
                 else:
-                    targetsTemp[i]["tsfile"] = userName + "_ts_" + str(i + 1).zfill(3) + ".mrc"    # if not, renumber (there should not be a mixed case)
-                    targetsTemp[i].pop("tgtfile")                        # don't save tgtfile to tgts file if False
-        os.replace(targetFile, targetFile + "~")                            # make backup
+                    targetsTemp[i]["tsfile"] = userName + "_ts_" + str(i + 1).zfill(3) + ".mrc" # if not, renumber (there should not be a mixed case)
+                    targetsTemp[i].pop("tgtfile")                   # don't save tgtfile to tgts file if False
+        os.replace(targetFile, targetFile + "~")                    # make backup
         writeTargets(targetFile, targetsTemp, geoPoints, savedRun, resume, settings)
         settingsOrig = copy.deepcopy(settings)
         log("NOTE: Changes to targets file were saved!")
 
-    def resetOrder():                                            # restore targets array as read from file
+    def resetOrder():                                               # restore targets array as read from file
         nonlocal targets, geoPoints
         targets = copy.deepcopy(targetsOrig)
-        geoPoints = []                                            # also resets geoPoints since possible shifts cannot be recovered
+        geoPoints = []                                              # also resets geoPoints since possible shifts cannot be recovered
         updateList()
         plt.clf()
         plotTargets()
         fig.canvas.draw()
 
-    def readEntry(*args):                                            # read all entry fields upon change
+    def readEntry(*args):                                           # read all entry fields upon change
         settings["startTilt"] = ecStartTilt.get()
         settings["minTilt"] = ecMinTilt.get()
         settings["maxTilt"] = ecMaxTilt.get()
@@ -1036,7 +1104,7 @@ def gui(targetFile):
             except ValueError:
                 if settings[key] != "":
                     settings[key] = ""
-                    log("WARNING: " + key + " is not a number!")
+                    log(f"WARNING: {key} is not a number!")
 
     def resetGeo():
         nonlocal geoPoints
@@ -1045,16 +1113,16 @@ def gui(targetFile):
         plotTargets()
         fig.canvas.draw()
 
-    def measureGeo():                                            # measure geometry
+    def measureGeo():                                               # measure geometry
         if len(geoPoints) < 3:
             tk.messagebox.showwarning(title="Not enough points", message="\n".join(["You need at least 3 points to measure the geometry!","","Add points by middle clicking in the plot. Points should not be on targets, dark areas or holes."]))
         else:
-            btnMeasureGeometry.grid_forget()                            # replace button with progress bar
+            btnMeasureGeometry.grid_forget()                        # replace button with progress bar
             progressBar.grid(column=3, row=5, sticky=tk.E, pady=6, padx=5)
             disabledWidgets = [btnSave, btnReset, btnResetGeoPts, btnMakeTrack, btnSaveViews, btnLoadMap, btnAddTargets]
             keepDisabled = []
-            for widget in disabledWidgets:                                # disable buttons that could interfere with measure geometry
-                if widget["state"] == tk.DISABLED:                        # keep already disabled buttons disabled
+            for widget in disabledWidgets:                          # disable buttons that could interfere with measure geometry
+                if widget["state"] == tk.DISABLED:                  # keep already disabled buttons disabled
                     keepDisabled.append(widget)
                 else:
                     widget["state"] = tk.DISABLED
@@ -1070,12 +1138,13 @@ def gui(targetFile):
                 sem.G(-1)
                 defocus, _ = sem.ReportAutoFocus()
                 drift = sem.ReportFocusDrift()
-                if defocus != 0 and drift != 0:
+                log(f"DEBUG:\nAutofocus: {defocus}\nDrift:     {drift}")
+                if abs(defocus) >= 0.01 and np.linalg.norm(drift) >= 0.01:
                     geoXYZ[0].append(geoPoints[i]["SSX"])
                     geoXYZ[1].append(geoPoints[i]["SSY"])
                     geoXYZ[2].append(defocus)
-                sem.SetImageShift(0,0)
-                progressBar["value"] = (i + 1) / len(geoPoints)                # update progress bar
+                sem.SetImageShift(0, 0)
+                progressBar["value"] = (i + 1) / len(geoPoints)     # update progress bar
                 top.update()
             ##########
             # Source: https://math.stackexchange.com/q/99317
@@ -1084,24 +1153,69 @@ def gui(targetFile):
             left = svd[0]
             norm = left[:, -1]
             ##########        
-            log("Fitted plane into cloud of " + str(len(geoPoints)) + " points.")
-            log("Normal vector: " + str(norm))
+            log(f"Fitted plane into cloud of {len(geoXYZ[0])} points ({len(geoPoints) - len(geoXYZ[0])} discarded).")
+            log(f"Normal vector: {norm}")
+
+            # Errors
+            errors = []
+            for point in zip(*geoXYZ):
+                errors.append(np.dot(norm, point - np.mean(geoXYZ, axis=1)) ** 2)
+            mean_error = np.mean(errors)
+            log(f"Fitting error: {mean_error}")
+
+            if debug:
+                log("DEBUG:\nGeo points [x, y, z, err]:")
+                for point in zip(*geoXYZ, errors):
+                    log(f"# {point}", color=1)
+
+            if mean_error > 1:
+                log("WARNING: Fit shows large error, please run again and visually check autofocus routine results. Then adjust geo points accordingly.")
+                tk.messagebox.showinfo(title="WARNING", message="Fit shows large error, please run again and visually check autofocus routine results. Then adjust geo points accordingly.")
+
+            # Plot measure geo fit
+            fig2 = plt.figure()
+            ax = plt.subplot(111, projection='3d')
+            ax.scatter(geoXYZ[0], geoXYZ[1], geoXYZ[2], s=50, label="Geo points", color="#ff0000")
+            for i in range(len(geoXYZ[0])):
+                ax.text(geoXYZ[0][i], geoXYZ[1][i], geoXYZ[2][i], ' %s' % (i + 1), size=20, zorder=1, color="#ff0000")
+
+            xlim = ax.get_xlim()
+            ylim = ax.get_ylim()
+            X,Y = np.meshgrid(np.arange(xlim[0], xlim[1]),
+                            np.arange(ylim[0], ylim[1]))
+            Z = np.zeros(X.shape)
+
+            center = np.mean(geoXYZ, axis=1)
+            for r in range(X.shape[0]):
+                for c in range(X.shape[1]):
+                    Z[r,c] = (-norm[0] * (X[r,c] - center[0]) - norm[1] * (Y[r,c] - center[1])) / norm[2] + center[2]
+            ax.plot_wireframe(X,Y,Z, label="Fitted plane", color="#000000")
+
+            ax.legend()
+            ax.set_xlabel('x')
+            ax.set_ylabel('y')
+            ax.set_zlabel('z')
+            ax.set_aspect("equal")
+            fig2.show()
 
             # Calculate pretilt and rotation
             sign = 1 if norm[1] <= 0 else -1
             tilty = sign * np.degrees(np.arccos(norm[2]))
-            log("Estimated pretilt: " + str(round(tilty, 1)) + " degrees", style=1)
+            log(f"Estimated pretilt: {round(tilty, 1)} degrees", style=1)
             rotation = -np.degrees(np.arctan(norm[0]/norm[1]))
-            log("Estimated rotation: " + str(round(rotation, 1)) + " degrees", style=1)
+            log(f"Estimated rotation: {round(rotation, 1)} degrees", style=1)
             tk.messagebox.showinfo(title="measureGeometry", message="\n".join(["Geometry measurement:","","Estimated pretilt: " + str(round(tilty, 1)) + " degrees","Estimated rotation: " + str(round(rotation, 1)) + " degrees"]))
-            entryPretilt.delete(0, tk.END)                                # update entry fields
+            if abs(tilty) >= 30 and abs(180 - abs(tilty)) >= 30:
+                tk.messagebox.showinfo(title="WARNING", message="Pretilt value seems abnormally high! Please run again and visually check autofocus routine results. Then adjust geo points accordingly.")
+
+            entryPretilt.delete(0, tk.END)                          # update entry fields
             entryPretilt.insert(0, str(round(tilty, 1)))
             entryRotation.delete(0, tk.END)
             entryRotation.insert(0, str(round(rotation, 1)))
             readEntry()
-            progressBar.grid_forget()                                # restore button
+            progressBar.grid_forget()                               # restore button
             btnMeasureGeometry.grid(column=3, row=5, sticky=tk.E, pady=3, padx=5)
-            for widget in [item for item in disabledWidgets if item not in keepDisabled]:        # reenable interfering buttons
+            for widget in [item for item in disabledWidgets if item not in keepDisabled]: # reenable interfering buttons
                 widget["state"] = tk.NORMAL
 
     def toggleBeam():
@@ -1110,7 +1224,7 @@ def gui(targetFile):
         plt.clf()
         plotTargets()
         fig.canvas.draw()
-        if drawBeam:                                            # also toggle beam polygons in SerialEM
+        if drawBeam:                                                # also toggle beam polygons in SerialEM
             for polyID in beamPolygons:
                 sem.ChangeItemDraw(polyID)
 
@@ -1151,7 +1265,7 @@ def gui(targetFile):
 
     targetsOrig = copy.deepcopy(targets)                            # make backup copy for reset
     settingsOrig = copy.deepcopy(settings)
-    #geoPoints = []
+
     if targetPattern and "size" in settings.keys():
         vecA = (float(settings["vecA0"]), float(settings["vecA1"]))
         vecB = (float(settings["vecB0"]), float(settings["vecB1"]))
@@ -1176,7 +1290,8 @@ def gui(targetFile):
 
     showScore = False
     s2cMatrix = sem.SpecimenToCameraMatrix(0)                       # figure out axis of plot to match SerialEM view
-    log("SS2C matrix: " + str(s2cMatrix))
+
+    log(f"DEBUG: SS2C matrix: {s2cMatrix}")
 
     if(abs(s2cMatrix[0]) > abs(s2cMatrix[1])):
         swapXY = False
@@ -1201,7 +1316,6 @@ def gui(targetFile):
     pixel = tk.PhotoImage(width=1, height=1)
 
     # create target list
-    #fileNameLen = max(len(str(targets[0]["tgtfile"])), len(str(targets[0]["tsfile"])))
     labelList = tk.Label(top, text=" ".join(["Tgt".ljust(5), "Tgtfile".ljust(len(str(targets[0]["tgtfile"])) + 3), "TSfile".ljust(len(str(targets[0]["tsfile"])) + 2), "SSX".rjust(6), "SSY".rjust(6), "Score".rjust(6), "Skip".ljust(70 - 33 - len(str(targets[0]["tgtfile"])) - len(str(targets[0]["tsfile"])))])) 
     labelList.grid(column=0, row=0, sticky=tk.E)
 
@@ -1226,7 +1340,7 @@ def gui(targetFile):
     btnSkip.grid(column=1, row=2, sticky=tk.W, pady=3)
     CreateToolTip(btnSkip, "Toggles skipping of selected target during collection.")
 
-    btnBorderMakeTrack = tk.Frame(top, highlightbackground="#ffd700", highlightthickness=2)        
+    btnBorderMakeTrack = tk.Frame(top, highlightthickness=2, highlightbackground="#ffd700")        
     btnMakeTrack = tk.Button(btnBorderMakeTrack, text="Make Track", image=pixel, compound="center", height=btnHeight, width=btnWidth, command=makeTrack)
     if savedRun or dummy: btnMakeTrack["state"] = tk.DISABLED
     btnMakeTrack.pack()
@@ -1237,7 +1351,7 @@ def gui(targetFile):
     btnLoadMap.grid(column=1, row=3, sticky=tk.W, pady=0)
     CreateToolTip(btnLoadMap, "Loads map into SerialEM for cross referencing.")
 
-    btnBorderAddTargets = tk.Frame(top, highlightbackground="#ffd700", highlightthickness=2)
+    btnBorderAddTargets = tk.Frame(top, highlightthickness=2, highlightbackground="#ffd700")
     btnAddTargets = tk.Button(btnBorderAddTargets, text="Add Targets", image=pixel, compound="center", height=btnHeight, width=btnWidth, command=moreTargets)
     if savedRun or dummy: btnAddTargets["state"] = tk.DISABLED
     btnAddTargets.pack()
@@ -1349,12 +1463,12 @@ def gui(targetFile):
 
     canvas = FigureCanvasTkAgg(fig, master = top)  
     canvas.draw()
-    canvas.get_tk_widget().grid(column=0, columnspan=8, row=7, padx=10, pady=10)                # placing the canvas on the Tkinter window
+    canvas.get_tk_widget().grid(column=0, columnspan=8, row=7, padx=10, pady=10) # placing the canvas on the Tkinter window
     fig.canvas.mpl_connect('pick_event', onSelect)
     fig.canvas.mpl_connect('button_press_event', onClick)
     fig.canvas.mpl_connect('scroll_event', onScroll)
 
-    toolbar_frame = tk.Frame(top)                                        # creating the Matplotlib toolbar
+    toolbar_frame = tk.Frame(top)                                   # creating the Matplotlib toolbar
     toolbar = NavigationToolbar2Tk(canvas, toolbar_frame)
     toolbar.update()
     toolbar_frame.grid(column=0, row=8, sticky=tk.W, padx=10)
@@ -1398,11 +1512,15 @@ sem.SuppressReports()
 sem.SetUserSetting("MoveStageOnBigMouseShift", 0)
 sem.SetUserSetting("DriftProtection", 1)
 sem.SetUserSetting("ShiftToTiltAxis", 1)
-sem.SetNewFileType(0)        # set file type to mrc in case user changed default file type
+sem.SetNewFileType(0)                                               # set file type to mrc in case user changed default file type
 
 dummy = False
 if sem.ReportProperty("DummyInstance") == 1:
     dummy = True
+
+if hasattr(sem, "DEBUG"):
+    def listToSEMarray(*args, **kwargs):
+        pass
 
 if not dummy:
     if int(sem.ReportAxisPosition("F")[0]) != 0 and sem.IsVariableDefined("warningFocusArea") == 0:
@@ -1430,7 +1548,7 @@ imageShiftLimit = sem.ReportProperty("ImageShiftLimit")
 navSize = sem.ReportNumTableItems()
 if navSize > 0:
     navInfo = sem.ReportNavItem()
-    navID = int(navInfo[0])                                        # check if selected nav item already has tgts file
+    navID = int(navInfo[0])                                         # check if selected nav item already has tgts file
     navNote = sem.GetVariable("navNote")
 else:
     navNote = ""
@@ -1439,10 +1557,10 @@ curDir = sem.ReportDirectory()
 
 if fileStem != "":
     userName = fileStem.split("_tgts")[0]
-    tf = sorted(glob.glob(os.path.join(curDir, userName + "_tgts.txt")))                    # find original tgts file
-    tfp = sorted(glob.glob(os.path.join(curDir, userName + "_tgts_p??.txt")))                # find tgts files copied to other positions
-    tfr = sorted(glob.glob(os.path.join(curDir, fileStem + "_run??.txt")))                    # find run files of current nav item but not other copied tgts file
-    tf.extend(tfr)                                                # only add run files to list of considered files
+    tf = sorted(glob.glob(os.path.join(curDir, userName + "_tgts.txt")))      # find original tgts file
+    tfp = sorted(glob.glob(os.path.join(curDir, userName + "_tgts_p??.txt"))) # find tgts files copied to other positions
+    tfr = sorted(glob.glob(os.path.join(curDir, fileStem + "_run??.txt")))    # find run files of current nav item but not other copied tgts file
+    tf.extend(tfr)                                                  # only add run files to list of considered files
 else:
     tf = []
 editTgts = 0
@@ -1455,7 +1573,7 @@ sem.GoToLowDoseArea("R")                                            # need SS to
 ss2sMatrix = np.array(sem.SpecimenToStageMatrix(0)).reshape((2, 2))
 s2ssMatrix = np.array(sem.StageToSpecimenMatrix(0)).reshape((2, 2))
 camProps = sem.CameraProperties()
-log("Camera properties: X = " + str(camProps[0]) + ", Y = " + str(camProps[1]) + ", RF = " + str(camProps[2]))
+log(f"Camera properties: X = {camProps[0]}, Y = {camProps[1]}, RF = {camProps[2]}")
 
 recDims = (camProps[0] * camProps[4] / 1000, camProps[1] * camProps[4] / 1000)
 beamPolygons = []
@@ -1476,17 +1594,22 @@ if editTgts == 0:
             groupStage = np.column_stack((np.array(sem.GetVariable("groupStageX").split(), dtype=float), np.array(sem.GetVariable("groupStageY").split(), dtype=float)))
             groupStageZ = float(sem.GetVariable("groupStageZ").split()[0])
             coordsRefine = np.array([s2ssMatrix @ x for x in groupStage - groupStage[0]])
-    elif targetPattern and not alignToP and navInfo[4] == 1:                        # if targetPattern and nav item is polygon
+            if coordsRefine.shape[0] <= 1:
+                log("WARNING: Group of points only contains 1 point. Using default target selection instead...")
+                pointRefine = 0
+    elif targetPattern and not alignToP and navInfo[4] == 1:        # if targetPattern and nav item is polygon
         usePolygon = sem.YesNoBox("\n".join(["POLYGON?", "", "The selected navigator item is a polygon. Do you want to fill it with a grid of points based on the beam diameter?"]))
         if usePolygon == 1:
-            sem.SaveNavigator()                                    # parse nav file to get polygon coords
+            if sem.ReportIfNavOpen() < 2:
+                sem.OKBox("Please select where to save the navigator!")
+            sem.SaveNavigator()                                     # parse nav file to get polygon coords
             navFile = sem.ReportNavFile()
             navHeader, navItems = parseNav(navFile)
 
             vertices = np.vstack([navItems[navID - 1]["PtsX"], navItems[navID - 1]["PtsY"]]).transpose()
             polygon = matplotlib.path.Path(vertices)
 
-    sem.EnterString("userName","Please provide a rootname for the PACE-tomo collection area!")
+    sem.EnterString("userName", "Please provide a rootname for the PACE-tomo collection area!")
     userName = sampleName + sem.GetVariable("userName").strip()
 
     tgtsFilePath = os.path.join(curDir, userName + "_tgts.txt")
@@ -1504,7 +1627,7 @@ if editTgts == 0:
     sem.ResetImageShift()
     if pointRefine == 1:
         sem.MoveStageTo(*groupStage[0], groupStageZ)
-    elif alignToP:                                                # center hole for center of tgtPattern
+    elif alignToP:                                                  # center hole for center of tgtPattern
         x, y, binning, exp, *_ = sem.ImageProperties("P")
         sem.SetExposure("V", exp)
         sem.SetBinning("V", int(binning))
@@ -1518,7 +1641,7 @@ if editTgts == 0:
     targetNo = 0
 
     userInput = 0
-    while userInput == 0 and (not targetPattern or usePolygon == 1):    # Only collect Preview image for non-target pattern or polygon setups
+    while userInput == 0 and (not targetPattern or usePolygon == 1): # Only collect Preview image for non-target pattern or polygon setups
         if useSearch: 
             sem.Search()
         else:
@@ -1558,7 +1681,7 @@ if editTgts == 0:
         stageX, stageY, stageZ = sem.ReportStageXYZ()
         ISX0, ISY0, *_ = sem.ReportImageShift()
         SSX0, SSY0 = sem.ReportSpecimenShift()
-        log("Remaining image shift in microns is: " + str(round(SSX0, 2)) + "," + str(round(SSY0, 2)))
+        log(f"Remaining image shift in microns is: {round(SSX0, 2)}, {round(SSY0, 2)}")
 
     # make view map tor realign to item
     sem.SetCameraArea("V", "F")
@@ -1577,7 +1700,7 @@ if editTgts == 0:
                 foundVecs, vecA, vecB = vecByXcorr(holeDiameter)
 
             if not foundVecs:
-                sem.Copy("B", "A")    # copy unbinned View image to buffer A to allow dragging
+                sem.Copy("B", "A")                                  # copy unbinned View image to buffer A to allow dragging
                 log("NOTE: Please center the neighboring hole by dragging the image using the right mouse button and press the <b> key when finished!")
                 sem.OKBox("\n".join(["Please center the neighboring hole [2] by dragging the image using the right mouse button!","","Press the <b> key when finished!","","Hole pattern:","0 0 0","0 1 2 <=","0 0 0"]))
                 while not sem.KeyBreak():
@@ -1597,11 +1720,11 @@ if editTgts == 0:
             vecA = (rotM @ np.array([1, 0])) * dist
             vecB = (rotM @ np.array([0, 1])) * dist
 
-        if alignToP:                                            # refine grid vectors by aligning to hole reference in P
+        if alignToP:                                                # refine grid vectors by aligning to hole reference in P
             sizeStep = 1
-            for i in range(min(2, size)):                                # run refinement stepwise (1 hole than furthest hole) if size > 1 
-                sem.SetImageShift(ISX0, ISY0)                            # reset IS to central hole after dragging
-                log("Vector A: " + str(vecA))
+            for i in range(min(2, size)):                           # run refinement stepwise (1 hole than furthest hole) if size > 1 
+                sem.SetImageShift(ISX0, ISY0)                       # reset IS to central hole after dragging
+                log(f"Vector A: {vecA}")
 
                 shiftx = sizeStep * vecA[0]
                 shifty = sizeStep * vecA[1]
@@ -1622,11 +1745,11 @@ if editTgts == 0:
 
                 vecA = (round(SSX / sizeStep, 4), round(SSY / sizeStep, 4))
 
-                log("Refined vector A: " + str(vecA))
+                log(f"Refined vector A: {vecA}")
 
-                sem.SetImageShift(ISX0, ISY0)                            # reset IS to center position
+                sem.SetImageShift(ISX0, ISY0)                       # reset IS to center position
 
-                log("Vector B: " + str(vecB))
+                log(f"Vector B: {vecB}")
 
                 shiftx = sizeStep * vecB[0]
                 shifty = sizeStep * vecB[1]
@@ -1647,7 +1770,7 @@ if editTgts == 0:
 
                 vecB = (round(SSX / sizeStep, 4), round(SSY / sizeStep, 4))
 
-                log("Refined vector B: " + str(vecB))
+                log(f"Refined vector B: {vecB}")
 
                 sizeStep = size
 
@@ -1670,7 +1793,7 @@ if editTgts == 0:
             patternPoints.extend([patternPoints[-1] + j * vecB * (1 if i % 2 == 0 else -1) for j in range(1, i)])
         patternPoints.extend([patternPoints[-1] + j * vecA * (-1 if i % 2 == 0 else 1) for j in range(1, i)])
 
-        for coords in patternPoints[1:]:        # ignore center, because the first target was already selected
+        for coords in patternPoints[1:]:                            # ignore center, because the first target was already selected
             SSX, SSY = coords
             stageShift = ss2sMatrix @ coords
 
@@ -1690,16 +1813,16 @@ if editTgts == 0:
             ptIndex = int(sem.AddStagePosAsNavPoint(target["stageX"] + stageShift[0], target["stageY"] + stageShift[1], stageZ))
             sem.ChangeItemLabel(ptIndex, str(targetNo).zfill(3))
 
-            log("Target " + str(targetNo).zfill(3) + " (" + userName + "_tgt_" + str(targetNo).zfill(3) + ".mrc) with image shifts " + str(SSX) + ", " + str(SSY) + " was added.", color=3)
+            log(f"Target {str(targetNo).zfill(3)} ({userName}_tgt_{str(targetNo).zfill(3)}.mrc) with image shifts {SSX}, {SSY} was added.", color=3)
 
         with open(tgtsFilePath, "a") as f:
             f.write(output)    
 
-    else:                                                    # loop over other targets
+    else:                                                           # loop over other targets
         loopAddTargets()
         sem.SetImageShift(ISX0, ISY0)
 
-if beamR == 0:                                                    # in case beamR was not defined during target selection
+if beamR == 0:                                                      # in case beamR was not defined during target selection
     if not dummy:
         sem.GoToLowDoseArea("R")
         beamR = sem.ReportIlluminatedArea() * 100 / 2
@@ -1709,16 +1832,16 @@ if beamR == 0:                                                    # in case beam
 
 reopen = True
 while reopen:
-    gui(tgtsFilePath)                                            # open GUI after selection is done
+    gui(tgtsFilePath)                                               # open GUI after selection is done
 
 if not dummy:
     sem.SetImageShift(0,0)
 if len(beamPolygons) > 0:
     beamPolygons.reverse()
-    for polyID in beamPolygons:                                            # needs to be reversed to keep IDs consistent during deletion
+    for polyID in beamPolygons:                                     # needs to be reversed to keep IDs consistent during deletion
         sem.DeleteNavigatorItem(polyID)
 
-log("Target selection completed! " + str(targetNo) + " targets were selected.", color=3, style=1)
+log(f"Target selection completed! {targetNo} targets were selected.", color=3, style=1)
 if guidance: 
     sem.OKBox("Target selection completed! " + str(targetNo) + " targets were selected.")
 sem.Exit()

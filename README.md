@@ -3,7 +3,7 @@
 Parallel cryo electron tomography (PACEtomo) is a set of SerialEM scripts written in Python that allows the collection of an arbitrary number of tilt series in parallel via beam image shift. A key feature is the consideration of the sample geometry for the prediction of sample movement throughout a tilt series.
 Please refer to the [publication](https://www.nature.com/articles/s41592-022-01690-1) ([pdf](https://rdcu.be/c0Qfm)) for more details.
 
-<img src="img/lamella_3D.png" alt="PACE-tomo" />
+<img src="img/lamella_3D.png" alt="PACEtomo" />
 
 ## Contents
 
@@ -75,7 +75,7 @@ To use PACEtomo just copy the content of *PACEtomo.py* and *PACEtomo_selectTarge
 
 ### Preparation
 
-For optimal results, load the sample such that the lamellae are oriented with the milling direction perpendicular to the tilt axis ([schematic for a Krios autoloader](img/gridOrientation.png)). Set up SerialEM low dose mode like you would for conventional tilt series acquisition. Make sure buffer O is outside the range of Roll Buffers (Buffer controls window). Offsets for *Focus* and *Trial* areas can be set to 0 to preserve specimen area. Make sure to set the appropriate [tilt axis offset](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_tasks.htm#hid_tasks_settiltaxisoffset) (more details [below](#pacetomo_measureoffsetpy)). It is recommended to do a [coma-free alignment](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_focus.htm#hid_focus_coma_by_ctf) and a [coma vs image shift calibration](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_calibration.htm#hid_focustuning_comavs) to minimise beam tilt for large image shifts (you might need a carbon film to get nice power spectra for CTF fitting). However, in most cases beam tilt will not be resolution limiting.
+For optimal results, load the sample such that the lamellae are oriented with the milling direction perpendicular to the tilt axis ([schematic for a Krios autoloader](img/gridOrientation.png)). Set up SerialEM low dose mode like you would for conventional tilt series acquisition. Make sure buffer O is outside the range of Roll Buffers (Buffer controls window). Offsets for *Focus* and *Trial* areas can be set to 0 to preserve specimen area. Make sure to set the appropriate [tilt axis offset](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_tasks.htm#hid_tasks_settiltaxisoffset) (more details [below](#pacetomo_measureoffsetpy)). It is recommended to do a [coma-free alignment](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_focus.htm#hid_focus_coma_by_ctf) and a [coma vs image shift calibration](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_calibration.htm#hid_focustuning_comavs) to minimize beam tilt for large image shifts (you might need a carbon film to get nice power spectra for CTF fitting). However, in most cases beam tilt will not be resolution limiting.
 
 ### Target selection
 
@@ -117,12 +117,12 @@ There is a variety of ways to select targets and their suitability will be sampl
 		- Before running the script, roughly centre your central hole.
 		- The script will align the hole using the reference in buffer P.
     - Using a View image, the hole pattern vectors will be automatically determined using autocorrelation.
-		- In case the automatic procedure fails, you will be asked to drag with the right mouse button to centre the neighbouring hole of the grid.
+		- In case the automatic procedure fails, you will be asked to drag with the right mouse button to centre the neighboring hole of the grid.
 		- The script will then automatically refine the vectors of the hole pattern using the reference in buffer P.
 	- The script will determine the coordinates of all targets and open the GUI for target editing.
 
 4. **Polygon: Filling an area with a regular pattern of targets.**
-   - You can draw a polygon to outline a collection area of interest using the Navigator. This might be useful to cover a large area (e.g. lamella) homogenously in targets. (Right now the grid is orthogonal. Consider using [SPACEtomo](https://github.com/eisfabian/SPACEtomo) for exhaustive lamella acquisition.)
+   - You can draw a polygon to outline a collection area of interest using the Navigator. This might be useful to cover a large area (e.g. lamella) homogeneously in targets. (Right now the grid is orthogonal. Consider using [SPACEtomo](https://github.com/eisfabian/SPACEtomo) for exhaustive lamella acquisition.)
    - Set ```targetPattern``` to ```True``` and ```alignToP``` to ```False```.
    - You can keep ```vecA``` and ```vecB``` at ```(0, 0)``` and set the rotation of the target grid using ```patternRot```. This will use the beam diameter to place targets far enough apart. Alternatively, you can define the grid vectors in specimen coordinates (µm, x along tilt axis).
    - You can change the ```beamDiameter``` setting to spread out the targets.
@@ -133,7 +133,7 @@ There is a variety of ways to select targets and their suitability will be sampl
    - Note: No preview images will be saved for your targets and hence, the collection might be slightly off the targets shown. You can use the *Save Views* function in the GUI to save view images for every point and set ```viewAli``` to ```True``` in the PACEtomo script to use the view images for initial target alignment.
 
 5. **Virtual maps (experimental): Pick targets without taking new images.**
-   - Using the *PACEtomo_targetsFromMontage.py* instead, you can crop out images from a View mag montage to serve as target references (similar to [py-EM](https://www.nature.com/articles/s41592-019-0396-9)). This can speed up target selection dramatically, but requires good contrast at low-defocus View mag for precise realignment. Good applications are lacey carbon support or similarly strong non-repetetive features.
+   - Using the *PACEtomo_targetsFromMontage.py* instead, you can crop out images from a View mag montage to serve as target references (similar to [py-EM](https://www.nature.com/articles/s41592-019-0396-9)). This can speed up target selection dramatically, but requires good contrast at low-defocus View mag for precise realignment. Good applications are lacey carbon support or similarly strong non-repetitive features.
    - Collect a View mag montage of your target area.
    - *Add points* using the navigator. The first point will be considered the tracking target.
    - Select the first point and run the *PACEtomo_targetsFromMontage.py* script from the script window. (Also works when running SerialEM in DUMMY mode.)
@@ -190,61 +190,105 @@ If you made any changes, please don't forget to click *Save*. Once you are done 
 
 PACEtomo runs a grouped dose-symmetric tilt scheme. Before starting the PACEtomo collection, please check the settings inside the *PACEtomo.py* script. Most settings are self-explanatory, but here is a more detailed description for some of them:
 
-- The ```startTilt``` in degrees is usually 0 or, in case of a lamella, the compensating tilt for the ```pretilt``` (in case of a ```pretilt``` of -10 degrees, a ```startTilt``` of 10 degrees can be used). The ```startTilt``` has to be divisible by the tilt ```step```.
-- The tilt range is given by the absolute ```minTilt```, ```maxTilt``` and ```step``` values in degree. The tilt series branches do not have to be symmetrical.
-- The number of contiguously acquired tilt images on one branch of the tilt series can be set with the ```groupSize``` parameter. 
-- If a defocus range is given, PACEtomo will use different target defoci (separated by ```stepDefocus```) for each target. If you want to use the same target defocus, keep ```minDefocus``` and ```maxDefocus``` the same.
-- If your tilt axis offset is not appropriately set, there will be a pseudo-linear defocus slope throughout your tilt series. You can run PACEtomo on a carbon film, estimate the defocus by CTF fitting and plot the change in µm per degree. Set this value as ```focusSlope``` to compensate in subsequent acquisitions. Alternatively, refine the tilt axis offset to minimise the slope. When using SerialEM’s fine eucentricity routine to obtain a tilt axis offset, a significant focus slope remains. You can use the [*PACEtomo_measureOffset.py*](#pacetomo_measureoffsetpy) script to get a PACEtomo optimised estimate for the tilt axis offset.
-- You can set delays to be applied after adjusting the image shift and after tilting. On modern state-of-the-art microscopes and resolutions typical of subtomogram averaging, such delays should not be necessary.
-- ```zeroExpTime``` can be a custom exposure time in seconds for the first tilt image. This can be useful for hybrid processing approaches. When set to ```0``` the same exposure time will be used for all tilt angles.
-- ```zeroDefocus``` can be a custom target defocus for the first tilt image. When set to ```0``` the same target defocus will be used for all tilt angles.
+| Setting | Default | Description |
+| ------- | ------- | ----------- |
+| `startTilt` | `0` | Start tilt angle [degrees] of the dose-symmetric tilt series. In case of a lamella, a compensating tilt for the `pretilt` can be used (in case of a `pretilt` of -10 degrees, a `startTilt` of 10 degrees). The `startTilt` has to be divisible by the tilt `step`. |
+| `minTilt` | `-60` | Minimum tilt angle [degrees] of the tilt series. |
+| `maxTilt` | `60`  | Maximum tilt angle [degrees] of the tilt series. The tilt series branches do not have to be symmetrical.|
+| `step` | `3` | Tilt angle increment [degrees] between tilt images. |
+| `groupSize` | `2` | The number of contiguously acquired tilt images on one branch of the tilt series. |
+| `minDefocus` | `-5` | Minimum target defocus [µm] of a defocus range that is incremented between targets. |
+| `maxDefocus` | `-5` | Maximum target defocus [µm] of a defocus range that is incremented between targets. If you want to use the same target defocus, keep `minDefocus` and `maxDefocus` the same. |
+| `stepDefocus` | `0.5` | Defocus increment [µm] between targets. |
+| `focusSlope` | `0` | If your tilt axis offset is not appropriately set, there will be a pseudo-linear defocus slope throughout your tilt series. You can run PACEtomo on a carbon film, estimate the defocus by CTF fitting and plot the change in [µm per degree]. Set this value as `focusSlope` to compensate in subsequent acquisitions. Alternatively, refine the tilt axis offset to minimize the slope. When using SerialEM’s fine eucentricity routine to obtain a tilt axis offset, a significant focus slope remains. You can use the [*PACEtomo_measureOffset.py*](#pacetomo_measureoffsetpy) script to get a PACEtomo optimized estimate for the tilt axis offset. |
+| `delayIS` | `0.1` | Delay [s] between applying beam-image shift and acquiring an image. Some microscopes require some settling time for the beam to stabilize. |
+| `delayTilt` | `0.1` | Delay [s] after tilting the stage for drift settling. |
+| `zeroExposure` | `0` | Custom exposure time [s] for the first tilt image. This can be useful for hybrid processing approaches. When set to `0` the same exposure time will be used for all tilt angles. |
+| `zeroDefocus` | `0` | Custom target defocus for the first tilt image. When set to `0` the same target defocus will be used for all tilt angles. |
 
-Track settings:
-- ```trackExpTime``` allows for a custom exposure time used only for the tracking tilt series. When set to ```0``` the same exposure time will be used for all tilt series.
-- ```trackDefocus``` allows for a custom defocus value used only for the tracking tilt series. When set to ```0``` the same defocus range will be used for all tilt series.
-- ```trackMag``` allows for custom magnification used only for the tracking tilt series. This should only be necessary on bad stages.
-- If ```trackTwice``` is set to ```True```, a second tracking image might be taken in case of a large shift. This causes significantly more exposure on the tracking tilt series and should only be necessary on bad stages.
+#### Track settings:
+| Setting | Default | Description |
+| ------- | ------- | ----------- |
+| `trackExpTime` | `0` | Custom exposure time used only for the tracking tilt series. When set to `0` the same exposure time will be used for all tilt series. |
+| `trackDefocus` | `0` | Custom defocus value used only for the tracking tilt series. When set to `0` the same defocus range will be used for all tilt series. |
+| `trackMag` | `0` | Custom magnification used only for the tracking tilt series. This should only be necessary on bad stages. |
+| `trackTwice` | `False` | If `True`, a second tracking image might be taken in case of a large shift. This causes significantly more exposure on the tracking tilt series and should only be necessary on bad stages. |
 
-Geometry settings:
-- The ```pretilt``` of the lamella (if applicable) is determined during the focused ion beam milling process and is usually between 8-15 degrees. The sign is important and depends on the orientation in which the grid was loaded into the microscope. For example, in case of a FIB milling angle of 10 degrees: If the lamella appears thinner/brighter at +10 degrees stage tilt angle, the pretilt value should be -10 degrees and vice versa. (It is recommended to load lamella containing grids consistently in the same orientation.) You can use the *measure geometry* routine in the target selection GUI to get an estimate of your lamella (or holey support) geometry.
-- Lamellae should be oriented with the milling direction perpendicular to the tilt axis during sample loading. In this case the ```rotation``` should be 0 degrees. If there is a residual rotation you can estimate and enter it for the initial estimation of the eucentric offset (CCW = positive).
-- If *geo points* were defined during target selection or *targetPattern* was used, setting ```measureGeometry``` to ```True``` will allow PACEtomo to estimate the sample geometry immediately before acquiring an area. For target patterns, the script will automatically determine five points between the targets to measure the defocus and estimate the *pretilt* and *rotation* values of the sample support. This can be useful for bent sample supports exhibiting varying geometries from grid square to grid square. It should be avoided if the pattern is tight and additional exposures within the grid would overlap with target positions. It is also needed for SPACEtomo.
+#### Geometry settings:
+| Setting | Default | Description |
+| ------- | ------- | ----------- |
+| `pretilt`  | `0` | The `pretilt` [degrees] of the lamella (if applicable) is determined during the focused ion beam milling process and is usually between 8-15 degrees. The sign is important and depends on the orientation in which the grid was loaded into the microscope. For example, in case of a FIB milling angle of 10 degrees: If the lamella appears thinner/brighter at +10 degrees stage tilt angle, the pretilt value should be -10 degrees and vice versa. (It is recommended to load lamella containing grids consistently in the same orientation.) You can use the *measure geometry* routine in the target selection GUI to get an estimate of your lamella (or holey support) geometry. |
+| `rotation` | `0` | Lamellae should be oriented with the milling direction perpendicular to the tilt axis during sample loading. In this case the `rotation` should be 0 degrees. If there is a residual rotation you can estimate and enter it for the initial estimation of the eucentric offset [degrees, CCW = positive].
+| `measureGeo` | `False` | If *geo points* were defined during target selection or *targetPattern* was used, setting `measureGeometry = True` will allow PACEtomo to estimate the sample geometry immediately before acquiring an area. For target patterns, the script will automatically determine five points between the targets to measure the defocus and estimate the *pretilt* and *rotation* values of the sample support. This can be useful for bent sample supports exhibiting varying geometries from grid square to grid square. It should be avoided if the pattern is tight and additional exposures within the grid would overlap with target positions. It is also needed for [SPACEtomo](https://github.com/eisfabian/SPACEtomo). |
 
-Holey support settings:
-- If you want to use PACEtomo on a regular target pattern (e.g., holey support film), set ```tgtPattern``` to ```True```. Additionally, set ```alignToP``` to ```True``` if you saved a hole template to buffer P to use for target alignment.
-- If ```refineVec``` is set to ```True```, PACEtomo uses the template in buffer P to refine the grid vectors of the target pattern at the current position. The grid of holes can vary slightly from grid square to grid square, which can become problematic for large target patterns (7x7 or larger).
-- If ```refineGeo``` is set to ```True```, PACEtomo will try to refine the sample geometry model after the first Record image of every target was taken. It will use the defoci determined by CTF estimation to fit a plane or paraboloid and overwrite the previously determined geometry estimation. This is useful for large target patterns (7x7 or larger) on bent or wavy support film. More settings for ```refineGeo``` are mentioned below.
+#### Holey support settings:
+| Setting | Default | Description |
+| ------- | ------- | ----------- |
+| `tgtPattern` | `False` | If you want to use PACEtomo on a regular target pattern (e.g., holey support film), set `tgtPattern = True`. |
+| `alignToP` | `False` | Set `alignToP = True` if you saved a hole template to buffer P to use for target alignment. |
+| `refineVec` | `False` | If `True`, PACEtomo uses the template in buffer P to refine the grid vectors of the target pattern at the current position. The grid of holes can vary slightly from grid square to grid square, which can become problematic for large target patterns (7x7 or larger). |
+| `refineGeo` | `False` | If ```True```, PACEtomo will try to refine the sample geometry model after the first Record image of every target was taken. It will use the defoci determined by CTF estimation to fit a plane or paraboloid and overwrite the previously determined geometry estimation. This is useful for large target patterns (7x7 or larger) on bent or wavy support film. More settings for ```refineGeo``` are mentioned below. |
+
+#### Session settings:
+| Setting | Default | Description |
+| ------- | ------- | ----------- |
+| `beamTiltComp` | `True` | Should be set to `True`, if you did the [coma vs image shift calibration](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_calibration.htm#hid_focustuning_comavs). It will compensate image shift induced beam tilt. |
+| `addAF` | `False` | If `True`, you can add additional autofocus routines on the tracking target at every branch switch of the dose-symmetric tilt series. This should help keeping the defocus spread low at the cost of overexposing the tracking tilt series and is usually not necessary. |
+| `previewAli` | `True` | <ul><li>If `True`, every target is aligned to its saved Preview image. This helps to keep your target centred if your `startTilt` is not 0.</li><li>If your field of view is large and your feature of choice does not have to be centred precisely, `previewAli` can be set to `False` to reduce the initial dose on your targets.</li><li>If `True` and only a View mag reference was saved for the target (e.g. from [targetsFromMontage](PACEtomo_targetsFromMontage.py) or [SPACEtomo](https://github.com/eisfabian/SPACEtomo)), SerialEM will attempt to align the Preview image to a View reference image.</li><li>`previewAli` can also be used for a `tgtPattern` if the grid is not very regular and grid vectors alone are not precise enough. In this case you should also set `alignToP = True`.</li></ul> |
+| `viewAli` | `False` | `viewAli` works similar to `previewAli` but only uses a View mag image for initial alignment to save exposure on the targets. If you rely on View images taken with high defocus offset, it is recommended to do the "High-Defocus Mag" and especially the "High-Defocus IS" calibrations. It is also used for [SPACEtomo](https://github.com/eisfabian/SPACEtomo). |
 
 
-Session settings:
-- ```beamTiltComp``` should be set to ```True``` if you did the [coma vs image shift calibration](https://bio3d.colorado.edu/SerialEM/hlp/html/menu_calibration.htm#hid_focustuning_comavs).
-- By setting ```addAF``` to ```True``` you can add additional autofocus routines on target 1 at every branch switch of the dose-symmetric tilt series. This should help keeping the defocus spread low at the cost of overexposing the tracking tilt series.
-- ```previewAli``` can be set to ```True``` if you want to align every target to its saved Preview image. This helps to keep your target centred if your ```startTilt``` is not 0. If your field of view is large and your feature of choice does not have to be centred precisely, ```previewAli``` can be set to ```False``` to reduce the initial dose on your targets. ```previewAli``` can also be used for a “targetPattern” if the grid is not very regular and vectors alone are not precise enough. In this case you should also have ```alignToP``` set to ```True```.
-- ```viewAli``` works similar to ```previewAli``` but only uses a View mag image for initial alignment to save exposure on the targets. If you rely on View images taken with high defocus offset, it is recommended to do the "High-Defocus Mag" and especially the "High-Defocus IS" calibrations. It is also used for SPACEtomo.
+#### Output settings:
+| Setting | Default | Description |
+| ------- | ------- | ----------- |
+| `sortByTilt` | `True` | The tilt series stacks are saved in order of acquisition. If you want to resort the stacks by tilt angle after acquisition, set `sortByTilt = True`. This will also resort the accompanying mdoc files, but keep unsorted versions for dose filtering considerations. |
+| `binFinalStack` | `1` | If greater `1`, only a binned version of the final tilt stack will be saved to save storage space. |
+| `delFinalStack` | `False` | If `True`, the final tilt stack will be deleted after acquisition to save storage space. In this case you rely on your saved frames to recreate your tilt stack. |
+| `doCtfFind` | `False` | CTF estimation is done for every Record image and the defocus is written to the .mdoc file. In PACEtomo, CTF estimation is only used for `refineGeo`. CTFfind is integrated in SerialEM and is used when `doCtfFind = True`. It is fast, but not very reliable especially at higher tilt angles. |
+| `doCtfPlotter` | `True` | CTF estimation using IMOD's ctfplotter, which is more robust and now also integrated in SerialEM.  |
+| `extendedMdoc` | `True` | If `True`, saves additional information like estimated defoci from CTF fitting, specimen shifts and eucentric offset estimations to the mdoc files. |
 
-Advanced settings:
-- The tilt series stacks are saved in order of acquisition. If you want to resort the stacks by tilt angle after acquisition, set ```sortByTilt``` to ```True```. This will also resort the accompanying mdoc files, but keep unsorted versions for dose filter considerations.
-- CTF estimation is done for every Record image and the defocus is written to the .mdoc file. CTFfind is integrated in SerialEM and is used when ```doCtfFind``` is set to ```True```. It is fast, but not very reliable especially at higher tilt angles. IMOD's ctfplotter is more robust and now also integrated in SerialEM. You can use it by setting ```doCtfPlotter``` to ```True```. Currently, CTF estimation is only used for ```refineGeo```.
-- If you use ```refineGeo```, ```fitLimit``` is the resolution cut-off beyond which CTF estimates will not be considered for the geometry refinement routine. ```parabolTh``` is the minimum threshold of available CTF estimates to fit a paraboloid instead of a plane.
-- SerialEM has a hard limit on applying image shifts, which is 15 µm by default. ```imageShiftLimit``` will overwrite this SerialEM property. The maximum amount of image shift is system dependent and the limit for Thermo Scientific TEM systems is always somewhere below 25 µm.
-- The number of ```dataPoints``` used for the calculation of the eucentric offset of each target was kept at 4 throughout all experiments. Changes could be beneficial to performance but have not been extensively explored.
-- The ```alignLimit``` should keep the cross-correlation alignment in check in cases of low contrast. On good stages the alignment error should never be worse than 0.5 µm.
-- If you set ```minCounts``` greater than 0, a branch of a target can be terminated independently if the image mean counts were below the threshold. The counts are considered per second of exposure and the ```ReportExposure``` command in SerialEM 4.0+ is used to obtain the exposure time.
-- ```ignoreFirstNegShift``` usually improves the alignment of the first tilt images from the negative branch and should generally be set to ```True```.
-- ```slowTilt``` should only be set to ```True``` if you need additional tilt backlash corrections for the positive tilt branch, which should not be necessary for good stages.
-- ```taOffsetPos``` and ```taOffsetNeg``` allow you to apply additional tilt axis offsets for positive and negative branches, respectively (as used for the side-entry holder dataset in the manuscript). These offsets are applied on top of the global offset set in SerialEM and are only used for the internal calculations.
-- ```extendedMdoc = True``` saves additional information like estimated defoci from CTF fitting, specimen shifts and eucentric offset estimations to the mdoc files.
-- ```checkDewar``` will check if the microscope dewars are filling before taking a Record image. (Can cause weird behaviour on some microscope without a dewar.)
-- If you are using a JEOL cryoARM, set ```cryoARM = True``` to always fill both dewars at the same time.
-- If you are using a coldFEG, set ```coldFEG = True``` to flash the gun regularly according to the ```flashInterval``` in hours. (On a Krios, the interval is ignored and the *FlashingAdvised* function is used instead.)
-- If you are using a large target pattern with collection times of several hours, it might not be sufficient to run the alignment of the energy filter slit between acquisition areas. If you set ```slitInterval``` to a number (in minutes) greater than 0, the script will move to a position out side the target pattern to run *RefineZLP* before continuing acquisition.
+#### Hardware settings:
+| Setting | Default | Description |
+| ------- | ------- | ----------- |
+| `slowTilt` | `False` | `slowTilt` should only be set to `True` if you need additional tilt backlash corrections for the positive tilt branch, which should not be necessary for good stages. |
+| `taOffsetPos` | `0` | Additional tilt axis offset [µm] for the positive tilt series branch (as used for the side-entry holder dataset in the PACEtomo manuscript). These offsets are applied on top of the global offset set in SerialEM and are only used for the internal calculations. |
+| `taOffsetNeg` | `0` | Additional tilt axis offset [µm] for the negative tilt series branch. |
+| `checkDewar` | `True` | If `True`, PACEtomo will check if the microscope dewars are filling before taking a Record image. (Can cause weird behavior on some microscope without a monitored dewar (e.g. JEOL F200).) |
+| `cryoARM` | `False` | If you are using a JEOL cryoARM, set `cryoARM = True` to always fill both dewars at the same time. |
+| `coldFEG` | `False` | If you are using a coldFEG, set `coldFEG = True` to flash the gun regularly according to the `flashInterval` in hours. |
+| `flashInterval` | `-1` | Interval [h] between coldFEG flashes. If set to `-1`, it will only be flashed while the dewars are refilling. (On a Krios, the interval is ignored and the *FlashingAdvised* function is used instead.) |
+| `slitInterval` | `0` | If you are using a large target pattern with collection times of several hours, it might not be sufficient to run the alignment of the energy filter slit between acquisition areas. If you set `slitInterval` to a number (in minutes) greater than 0, the script will move to a position out side the target pattern to run *RefineZLP* before continuing acquisition. |
 
-Target montage settings:
-- If you want to collect a montage tilt series for each target instead of a single image tilt series, you can set ```tgtMontage``` to ```True``` and set the size and overlap with ```tgtMntSize``` and ```tgtMntOverlap```, respectively. The montage uses the shorter camera length to determine the tile displacement. This was implemented for use with a square beam (square C2 aperture).
-- ```tgtMntFocusCor``` lets you apply an additional focus offset between the tiles to compensate for the tilt angle dependent z-offset. This might require additional processing considerations when reconstructing the tomogram.
-- ```tgtTrackMnt``` determines if the tracking tilt series should also be a montage or not.
+#### Advanced settings:
+| Setting | Default | Description |
+| ------- | ------- | ----------- |
+| `fitLimit` | `30` | If you use `refineGeo`, `fitLimit` is the resolution cut-off [Å] beyond which CTF estimates will not be considered for the geometry refinement routine. |
+| `parabolTh` | `9` | Minimum number of available CTF estimates to fit a paraboloid instead of a plane when using `refineGeo`. |
+| `imageShiftLimit` | `15` | SerialEM has a hard limit on applying image shifts, which is 15 µm by default. `imageShiftLimit` will overwrite this SerialEM property. The maximum amount of image shift is system dependent and the limit for Thermo Scientific TEM systems is always somewhere below 25 µm. |
+| `dataPoints` | `4` | The number of `dataPoints` used for the calculation of the eucentric offset of each target was kept at 4 throughout all experiments. Changes could be beneficial to performance but have not been extensively explored. |
+| `alignLimit` | `0.5` | Maximum shift [µm] to accept alignment result. This should keep the cross-correlation alignment in check in cases of low contrast. On good stages the alignment error should never be worse than 0.5 µm. |
+| `minCounts` | `0` | If greater than `0`, a branch of a target can be terminated independently if the image mean counts were below the threshold. The counts are considered per second of exposure and the *ReportExposure* command in SerialEM 4.0+ is used to obtain the exposure time. |
+| `ignoreNegStart` | `True` | Usually improves the alignment of the first tilt images from the negative branch and should generally be set to `True`. |
+| `refFromPreview` | `False` | If `True`, will save the image taken during `previewAli` and use it as reference for the first Record image instead of the saved reference. |
+| `noZeroRecAli` | `False` | If `True`, will use the saved reference during `previewAli` but ignore it for the first Record image. The tilt series will thus be centered on wherever the first Record image was taken rather than trying to target the saved Preview reference. |
+
+#### Target montage settings (experimental):
+| Setting | Default | Description |
+| ------- | ------- | ----------- |
+| `tgtMontage` | `False` | If you want to collect a montage tilt series for each target instead of a single image tilt series, you can set `tgtMontage = True`. The montage uses the shorter camera length to determine the tile displacement. This was implemented for use with a square beam (square C2 aperture). |
+| `tgtMntSize` | `1` |  Size of montage (`1`: 3x3, `2`: 5x5, `3`: 7x7, ...). |
+| `tgtMntOverlap` | `0.05` | Overlap between neighboring montage tiles as fraction of shorter camera dimension. |
+| `tgtMntXOffset` | `0` | Maximum offset [µm] applied along the tilt axis throughout the tilt series to reduce exposure overlap. (+`tgtMntXOffset` is reached at `maxTilt`, -`tgtMntXOffset` at `minTilt`) |
+| `tgtMntFocusCor` | `False` | If `True`, an additional focus offset is applied between the tiles to compensate for the tilt angle dependent z-offset. This might require additional processing considerations when reconstructing the tomogram. |
+| `tgtTrackMnt` | `False` | If `True`, the tracking tilt series will also be treated as a montage. |
+
+
+#### Changing settings in targets file
     
-Any numerical setting in the script can be overwritten by settings in the target file (*rootname_tgts.txt*). This allows for varying settings during batch acquisition of several PACEtomo areas. To overwrite a setting add a line like ```_set varName = numericalValue``` at the beginning or end of the targets file.
+Any numerical or boolean setting in the script can be overwritten by settings in the target file (*rootname_tgts.txt*). This allows for varying settings during batch acquisition of several PACEtomo areas. To overwrite a numerical setting or a boolean setting add a line like ```_set varName = numericalValue``` or ```_bset varName = <1 or 0>```, respectively, at the beginning or end of the targets file.
+
+#### Starting a run
 
 You can run the PACEtomo acquisition script either by selecting the entry of target 1 in the Navigator (its Note entry contains *rootname_tgts.txt*) and pressing *Run* in the script window or you can run it in batch via the *Acquire at Items...* dialogue. In the latter case, you can uncheck any eucentricity and realign checkboxes as the script will take care of it.
 
@@ -263,7 +307,7 @@ If you feel confident in the recovery capabilities, you can stop an acquisition,
 #### [*PACEtomo_measureOffset.py*](https://github.com/eisfabian/PACEtomo/blob/main/PACEtomo_measureOffset.py)
 SerialEM usually estimates the tilt axis offset using y-displacements measured during the fine eucentricity routine, which yields suboptimal results for PACEtomo. This script will estimate the tilt axis offset optimized for movement along the z-axis during tilting <sub>(Thanks to Wim Hagen for the suggestion!)</sub>. It will use SerialEM's autofocus routine to measure the z-height at 3 (or more) positions (on tilt axis and ± the given ```offset```) throughout a limited tilt series (given by ```increment``` and ```maxTilt```). The results should be within 0.1-0.2 µm of the optimal position for PACEtomo and you can adjust it depending on the focus slope you observe during a PACEtomo run.
 - How to use:
-  - You can use the default values or adjust the ```maxTilt``` and tilt ```increment``` for more or less datapoints used in the estimation.
+  - You can use the default values or adjust the ```maxTilt``` and tilt ```increment``` for more or less data points used in the estimation.
   - Make sure that there are no dark images or holes where the script runs the autofocus routine.
   - It will show you 3 tilt axis offsets for the different positions and an average tilt axis offset. The results are relative to the offset already set in SerialEM.
   - Let the script set the estimated tilt axis offset or set the tilt axis offset in SerialEM (-> Tasks -> Eucentricity -> Set Tilt Axis Offset).
@@ -291,11 +335,40 @@ A selection of video tutorials was uploaded to Youtube. These were recorded usin
 ## Troubleshooting
 - Some of you targets are being skipped: Double check if you want to collect targets with such high image shifts. If yes, change the ```imageShiftLimit``` setting in the PACEtomo acquisition script accordingly.
 - The script just stops without a message. This can happen on microscopes without automated Dewar refill function. Try to set ```checkDewar``` to ```False```.
-- "Cannot open the selected File": Make sure no other program is accessing the tilt series files during collection. (For example, a program automatically transfering the data. This can sometimes cause SerialEM to have trouble opening some files.)
-- Images show edges of holes despite vector refinement with hole reference: If the defocus offset for the view mag is large, the image shift calibrations between mags might not be valid anymore. Try lowering the defocus offset or recalibrate the image shifts for large defocus offsets. Especially the "High-Defocus Mag" and especially the "High-Defocus IS" calibrations also help to keep a feature centered when switcing from *View* to *Record* state.
+- "Cannot open the selected File": Make sure no other program is accessing the tilt series files during collection. (For example, a program automatically transferring the data. This can sometimes cause SerialEM to have trouble opening some files.)
+- Images show edges of holes despite vector refinement with hole reference: If the defocus offset for the view mag is large, the image shift calibrations between mags might not be valid anymore. Try lowering the defocus offset or recalibrate the image shifts for large defocus offsets. Especially the "High-Defocus Mag" and especially the "High-Defocus IS" calibrations also help to keep a feature centered when switching from *View* to *Record* state.
 - to be continued...
 
 ## Recent changes
+
+### 18.10.2024
+#### PACEtomo.py [v1.9]
+Bug fixes, more checks and warnings, added AlignBetweenMags for realignment, added debug output.
+<details>
+<summary>Changes</summary>
+
+- Added AlignBetweenMags command to allow more precise targeting when only View reference is available (e.g. when using targetsFromMontage or SPACEtomo).
+- Added walk up to large start tilts.
+- Added reading of boolean settings from targets file using `_bset`.
+- Added auto opening of Column valves before acquiring.
+- Added cross correlation output for alignments in debug mode.
+- Added more experimental montage tilt series options.
+- Fixed file access crashes when using Robocopy or similar.
+- Fixed tilt angles in MRC header not being resorted when resorting tilt series by tilt angle.
+- Fixed attempt to tilt beyond tilt limits when max tilt not divisible by increment.
+</details>
+
+#### PACEtomo_selectTargets.py [v1.9]
+New measure geometry plot, bug fixes, added debug output.
+
+<details>
+<summary>Changes</summary>
+
+- Added 3D plot of "Measure geometry" result for user inspection. 
+- Added debug output and plots for support film hole vector detection.
+- Added polygon to show montage dimensions for experimental montage tilt series setup.
+- Fixed crash when opening targets file generated by targetsFromMontage in DUMMY mode.
+</details>
 
 ### 21.05.2024
 #### PACEtomo.py [v1.8]
@@ -352,10 +425,10 @@ Mostly small fixes and quality of life improvements.
 
 ### 28.04.2023
 #### PACEtomo.py [v1.6]
-This update includes mainly options for more robust tracking (e.g. for cryoARMs), CFEG functions and bug fixes.
+This update includes mainly options for more robust tracking (e.g. for cryoARMs), coldFEG functions and bug fixes.
 - Notes:
   - When using lower mag tracking, make sure the record beam settings still cover the camera!
-  - The CFEG flashing for TFS instruments was not tested!
+  - The coldFEG flashing for TFS instruments was not tested!
 <details>
 <summary>Changes</summary>
 	
@@ -397,7 +470,7 @@ Lots of bug fixes, addition of target setup from polygons and initial grid vecto
 	
   - Added initial vector estimation for targetPattern using auto-correlation (needs at least 9 holes in the field of View).
   - Added targetPattern setup to fill a polygon using beamDiameter as distance between targets (needs some testing).
-  - Fixed being able to unskip skipped targets and continue run.
+  - Fixed being able to un-skip skipped targets and continue run.
   - Added progress bars for some GUI functions.
   - Switched to specimen to stage conversion matrix to avoid coordinate inversion on some systems.
   - Added counter in case tgts file already existed.

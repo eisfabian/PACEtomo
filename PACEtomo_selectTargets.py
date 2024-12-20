@@ -5,8 +5,8 @@
 #               More information at http://github.com/eisfabian/PACEtomo
 # Author:       Fabian Eisenstein
 # Created:      2021/04/19
-# Revision:     v1.9.0
-# Last Change:  2024/09/17: fixed drawing of montage dims when starting GUI
+# Revision:     v1.9.1dev
+# Last Change:  2024/11/01: improved map display on some systems
 # ===================================================================
 
 ############ SETTINGS ############ 
@@ -347,6 +347,9 @@ def angles_in_ellipse(num, a, b):
 ##########
 
 def drawBeamPolygon(stageX, stageY, stageZ, radius, angle):
+    if angle == 0:
+        log(f"WARNING: Max tilt angle was set to 0.")
+        angle = 1
     a = radius
     b = radius / np.cos(np.radians(angle))
     n = 32
@@ -905,15 +908,15 @@ def gui(targetFile):
             if polygon.contains_points([(targets[0]["stageX"], targets[0]["stageY"])])[0]:
                 bbox = polygon.get_extents()
                 area = bbox.bounds[2] * bbox.bounds[3]
-                drawnOn.append({"id": i + 1, "label": item["Item"], "area": area})
+                drawnOn.append({"id": i + 1, "label": item["Item"], "area": area, "magInd": int(item["MapMagInd"][0])})
         if len(drawnOn) > 0:
             drawnOn = sorted(drawnOn, key=lambda d: d["area"], reverse=True)
             mapLabel = drawnOn[0]["label"]
-            confirm = tk.messagebox.askyesno(title="Load Map?", message="A map was detected containing your targets. Do you want to load it?")
+            confirm = tk.messagebox.askyesno(title="Load Map?", message=f"A map was detected containing your targets [{mapLabel}]. Do you want to load it?")
             if confirm:
-                loadMap(drawnOn[0]["id"])
+                loadMap(drawnOn[0]["id"], magInd=drawnOn[0]["magInd"])
 
-    def loadMap(mapIndex=None):
+    def loadMap(mapIndex=None, magInd=0):
         global mapLabel
         nonlocal loadedMap, mapExtent
         if mapIndex is None:
@@ -926,19 +929,27 @@ def gui(targetFile):
         else:
             sem.LoadOtherMap(mapIndex)
             _, mapX, mapY, *_ = sem.ReportOtherItem(mapIndex)                                   # get map stage coords
-            c2ssMatrix = np.array(sem.CameraToSpecimenMatrix(0)).reshape((2, 2))                # get matrix to calc tilt axis offset
+            # Get matrix and tilt axis rotation from map mag
+            c2ssMatrix = np.array(sem.CameraToSpecimenMatrix(magInd)).reshape((2, 2))           # get matrix to calc tilt axis offset
             taRot = - 90 - np.degrees(np.arctan2(c2ssMatrix[0, 1], c2ssMatrix[0, 0]))            
+            log(f"DEBUG: Tilt axis rotation: {taRot}")
             buffer, *_ = sem.ReportCurrentBuffer()
             imgProp = sem.ImageProperties(buffer)                                               # get map dimensions and pixel size
             mapWidth, mapHeight = int(imgProp[0]), int(imgProp[1])
+            log(f"DEBUG: Map dimensions: {mapWidth}, {mapHeight}")
             mapPixelSize = float(imgProp[4]) / 1000 #micron
             loadedMap = np.flip(np.asarray(sem.bufferImage(buffer)), axis=0)                    # flip y-axis of map
             loadedMap = loadedMap[0:mapHeight - mapHeight % 8, 0:mapWidth - mapWidth % 8]       # make divisible by 8
             loadedMap = loadedMap.reshape(mapHeight // 8, 8, mapWidth // 8, 8).sum(3).sum(1)    # fast binning by 8
+            log(f"DEBUG: Map dimensions after binning: {np.flip(loadedMap.shape)}")
             loadedMap = exposure.rescale_intensity(loadedMap, out_range=(0, 1))                 # recover intensity from binning
             loadedMap = transform.rotate(loadedMap, -taRot, cval=1)                             # rotate by tilt axis rotation
             # calculate scaling for plot using stage coords of montage and target 1 to set (0, 0)
-            mapExtent = [float(targets[0]["stageY"]) - mapY - mapWidth * mapPixelSize / 2, float(targets[0]["stageY"]) - mapY + mapWidth * mapPixelSize / 2, float(targets[0]["stageX"]) - mapX - mapHeight * mapPixelSize / 2, float(targets[0]["stageX"]) - mapX + mapHeight * mapPixelSize / 2]
+            mapShift = s2ssMatrix @ np.array([float(targets[0]["stageX"]) - mapX, float(targets[0]["stageY"]) - mapY])
+            log(f"DEBUG: Map shift: {mapShift}")
+            mapDimsMicrons = [mapWidth * mapPixelSize, mapHeight * mapPixelSize]
+            mapExtent = [-mapDimsMicrons[0] / 2 - mapShift[1], mapDimsMicrons[0] / 2 - mapShift[1], -mapDimsMicrons[1] / 2 - mapShift[0], mapDimsMicrons[1] / 2 - mapShift[0]]
+            log(f"DEBUG: Map extents: {mapExtent}")
             plt.clf()
             plotTargets()
             fig.canvas.draw()            
@@ -1572,6 +1583,7 @@ if tf != []:
 sem.GoToLowDoseArea("R")                                            # need SS to stage matrix for conversion
 ss2sMatrix = np.array(sem.SpecimenToStageMatrix(0)).reshape((2, 2))
 s2ssMatrix = np.array(sem.StageToSpecimenMatrix(0)).reshape((2, 2))
+log(f"DEBUG: S2SS matrix: {s2ssMatrix}")
 camProps = sem.CameraProperties()
 log(f"Camera properties: X = {camProps[0]}, Y = {camProps[1]}, RF = {camProps[2]}")
 
@@ -1668,10 +1680,17 @@ if editTgts == 0:
     if drawBeam or usePolygon == 1:
         if beamR == 0:
             beamR = sem.ReportIlluminatedArea() * 100 / 2
+            # Set to beam diameter to 1 if illuminated area was reported 0
+            log(f"DEBUG: Illuminated area: {beamR * 2}")
+            if beamR == 0:
+                log(f"WARNING: Beam diameter could not be determined automatically and was set to 1 micron. Please set the beam diameter setting manually!")
+                beamR = 0.5
         if drawBeam:
             beamPolygons.append(drawBeamPolygon(target["stageX"], target["stageY"], stageZ, beamR, maxTilt))
 
     # Reset image shift to tracking target if above threshold
+    log(f"DEBUG: Image shift for tracking: {ISX0}, {ISY0}")
+    log(f"DEBUG: Specimen shift for tracking: {SSX0}, {SSY0}")
     image_shift_threshold = 0.5 # microns
     if SSX0 > image_shift_threshold or SSY0 > image_shift_threshold:
         log("NOTE: Resetting image shift for tracking target because image shift was above threshold!")
@@ -1713,12 +1732,14 @@ if editTgts == 0:
                 vecB = (-vecA[1], vecA[0])
 
         if np.linalg.norm(vecA) == 0 and usePolygon == 1:
+            log(f"Setting up grid of targets according to beam diameter...")
             dist = [2 * beamR, 2 * beamR / np.cos(np.radians(maxTilt))]
             theta = np.arctan(np.tan(np.radians(patternRot)) * np.cos(np.radians(maxTilt)))
             rotM = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
             size = 10
             vecA = (rotM @ np.array([1, 0])) * dist
             vecB = (rotM @ np.array([0, 1])) * dist
+            log(f"DEBUG: Grid vectors for polygon: {vecA}, {vecB}")
 
         if alignToP:                                                # refine grid vectors by aligning to hole reference in P
             sizeStep = 1

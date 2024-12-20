@@ -6,8 +6,8 @@
 #               More information at http://github.com/eisfabian/PACEtomo
 # Author:       Fabian Eisenstein
 # Created:      2021/04/16
-# Revision:     v1.9.0
-# Last Change:  2024/10/18: temp fixed numpy2 breaking run files
+# Revision:     v1.9.1
+# Last Change:  2024/12/20: fixed tracking in debug mode, fixed sorted mdoc formatting
 # ===================================================================
 
 ############ SETTINGS ############ 
@@ -91,7 +91,7 @@ debug           = False     # Enables additional output for a few processes (e.g
 
 ########## END SETTINGS ########## 
 
-versionPACE = "1.9.0"
+versionPACE = "1.9.1dev"
 
 import serialem as sem
 import os
@@ -103,7 +103,7 @@ import numpy as np
 from scipy import optimize
 if sortByTilt: import mrcfile
 
-versionCheck = sem.IsVersionAtLeast("40200", "20240119")
+versionCheck = sem.IsVersionAtLeast("40200", "20240814")
 if not versionCheck and sem.IsVariableDefined("warningVersion") == 0:
     runScript = sem.YesNoBox("\n".join(["WARNING: You are using a version of SerialEM that does not support all PACEtomo features. It is recommended to update to the latest SerialEM beta version!", "", "Do you want to run PACEtomo regardless?"]))
     if not runScript:
@@ -253,8 +253,8 @@ def parseMdoc(mdocFile):
         elif "ZValue" in newItem.keys():
             newItem[col[0]] = [val for val in col[2:]]
         else:
-            header.append(line)
-    if "ZValue" in newItem.keys():                                                              # append last target
+            header.append(line.strip())
+    if "ZValue" in newItem.keys(): # append last item
         items.append(newItem)
     return header, items
 
@@ -270,11 +270,10 @@ def writeMdoc(header, items, filename):
         item.pop("ZValue")
         item.pop("index")
         for key, attr in item.items():
-            content += key + " = "
-            for val in attr:
-                content += str(val) + " "
+            content += key + " = " + (" ".join(attr) if key != "DateTime" else "  ".join(attr)) # Date and time is separated by double space in SerialEM
             content += os.linesep
-        content += os.linesep
+        if i < len(items) - 1: # Don't add additional linebreak at end of file
+            content += os.linesep
     with open(filename, "w", newline="") as f:
         f.write(content)
     return
@@ -336,14 +335,18 @@ def sortTS(ts_name):
         header, tilts = parseMdoc(os.path.join(curDir, ts_name + ".mdoc"))
         # Make list of tilt angles
         tiltAngles = [float(tilt["TiltAngle"][0]) for tilt in tilts]
+        log(f"DEBUG: Tilts before sorting: {tiltAngles}")
         # Get extended header data
         ext_header_sections = getExtendedHeader(os.path.join(curDir, ts_name))
+        log(f"DEBUG: MRC header sections: {len(ext_header_sections)}")
         # Open mrc file
         with mrcfile.open(os.path.join(curDir, ts_name), "r+") as mrc:
             stack = mrc.data
+            log(f"DEBUG: MRC data dims: {np.array(stack).shape}")
             # Sort tilts and stack according to tilt angle
             zippedTilts = sorted(zip(tiltAngles, tilts, stack, ext_header_sections))
             tiltAngles, tilts, stack, ext_header_sections = zip(*zippedTilts)
+            log(f"DEBUG: Tilts after sorting: {tiltAngles}")
             stack = np.array(stack)
             # Save new stack in same file
             mrc.set_data(stack)
@@ -410,6 +413,17 @@ def checkFrames(ts_name):
 
     log(f"WARNING: Frames for {ts_name} could not be found. Keeping tilt stack unprocessed.")
     return False
+
+def alignTo(buffer, debug=False):
+    sem.AlignTo(buffer, 0, 0, 0, int(debug))
+    if debug:
+        try:
+            sem.AddBufToStackWindow("A", 0, 0, 0, 0, "CC") #M #S [#B] [#O] [title]
+        except AttributeError:
+            # Show CC briefly, then switch back to aligned buffer for buffer shift
+            sem.Delay(1, "s")
+        sem.Copy("B", "A")
+        sem.AlignTo(buffer)
 
 def log(text, color=0, style=0):
     if text.startswith("DEBUG:") and not debug:
@@ -515,7 +529,7 @@ def Tilt(tilt):
         setTrack()
         if checkDewar: checkFilling()
         sem.L()
-        sem.AlignTo("O", 0, 0, 0, int(debug))
+        alignTo("O", debug)
         bufISX, bufISY = sem.ReportISforBufferShift()
         sem.ImageShiftByUnits(position[0][pn]["ISXali"], position[0][pn]["ISYali"])             # remove accumulated buffer shifts to calculate alignment to initial startTilt image
         position[0][pn]["ISXset"], position[0][pn]["ISYset"], *_ = sem.ReportImageShift()
@@ -622,14 +636,14 @@ def Tilt(tilt):
         if tilt != startTilt or (not tgtPattern and "tgtfile" in targets[pos].keys() and not noZeroRecAli): # align to previous image if it exists 
             if pos != 0: 
                 sem.LimitNextAutoAlign(alignLimit)                                              # gives maximum distance for AlignTo to avoid runaway tracking
-            sem.AlignTo("O", 0, 0, 0, int(debug))
+            alignTo("O", debug)
             if trackTwice and pos == 0:                                                         # track twice if alignLimit for tracking area is surpassed
                 ASX, ASY = sem.ReportAlignShift()[4:6]
                 if abs(ASX) > alignLimit * 1000 or abs(ASY) > alignLimit * 1000:
                     bufISXpre, bufISYpre = sem.ReportISforBufferShift()                         # have to be added only to ISset but not ISali (since ali only considers the IS chain of ali images)
                     sem.R()
                     sem.S()
-                    sem.AlignTo("O", 0, 0, 0, int(debug))
+                    alignTo("O", debug)
 
         bufISX, bufISY = sem.ReportISforBufferShift()
 
@@ -857,6 +871,7 @@ tiltLimit = sem.ReportProperty("MaximumTiltAngle")
 sem.SetUserSetting("DriftProtection", 1)
 sem.SetUserSetting("ShiftToTiltAxis", 1)
 sem.SetNewFileType(0)                                                                           # set file type to mrc in case user changed default file type
+sem.SetFrameBaseName(0, 1, 0, "PACEtomo_setup")                                                 # change frame name at start to avoid overwriting in case sets other than Record save frames
 
 # Warnings
 log(f"DEBUG: Tilt limit is: {tiltLimit}")
@@ -1001,7 +1016,7 @@ if not recover:
         sem.SetBinning("V", int(binning))
         sem.V()
         sem.CropCenterToSize("A", int(x), int(y))
-        sem.AlignTo("P", 0, 0, 0, int(debug))
+        alignTo("P", debug)
         sem.RestoreCameraSet("V")
         if refineVec and tgtPattern and size is not None:
             if float(sem.ReportDefocus()) < -50:
@@ -1017,7 +1032,7 @@ if not recover:
             sem.ImageShiftByMicrons(shiftx, shifty)
 
             sem.V()
-            sem.AlignTo("P", 0, 0, 0, int(debug))
+            alignTo("P", debug)
             sem.GoToLowDoseArea("R")
 
             SSX, SSY = sem.ReportSpecimenShift()
@@ -1036,7 +1051,7 @@ if not recover:
                 sem.ImageShiftByMicrons(shiftx, shifty)
 
                 sem.V()
-                sem.AlignTo("P", 0, 0, 0, int(debug))
+                alignTo("P", debug)
                 sem.GoToLowDoseArea("R")
 
                 SSX, SSY = sem.ReportSpecimenShift()
@@ -1133,9 +1148,10 @@ if not recover:
 
     # Walk up if necessary
     if abs(startTilt) > 10:
+        log(f"DEBUG: Doing walkup to {startTilt // 2} then {startTilt}")
         sem.TiltTo(startTilt // 2)
         sem.V()
-        sem.AlignTo("O", 0, 0, 0, int(debug))
+        alignTo("O", debug)
         sem.V()
         sem.Copy("A", "O")
 
@@ -1143,13 +1159,13 @@ if not recover:
     sem.TiltTo(startTilt)
 
     sem.V()
-    sem.AlignTo("O", 0, 0, 0, int(debug))
+    alignTo("O", debug)
     sem.GoToLowDoseArea("R")
 
     if not tgtPattern and previewAli:
         sem.LoadOtherMap(navID, "O")                                                            # preview ali before first tilt image is taken
         sem.AcquireToMatchBuffer("O")                                                           # in case view image was saved for tracking target
-        sem.AlignTo("O", 0, 0, 0, int(debug))
+        alignTo("O", debug)
 
     ISX0, ISY0, *_ = sem.ReportImageShift()
     SSX0, SSY0 = sem.ReportSpecimenShift()
@@ -1213,28 +1229,32 @@ if not recover:
                 sem.SetBinning("V", int(binning))
                 sem.V()
                 sem.CropCenterToSize("A", int(x), int(y))
-                sem.AlignTo("P", 0, 0, 0, int(debug))
+                alignTo("P", debug)
                 sem.RestoreCameraSet("V")
             else:
                 if "viewfile" in tgt.keys() and viewAli:
                     sem.ReadOtherFile(0, "O", tgt["viewfile"])                                  # reads view file for first AlignTo instead
                     sem.V()
-                    sem.AlignTo("O", 0, 0, 0, int(debug))
+                    alignTo("O", debug)
                     ASX, ASY = sem.ReportAlignShift()[4:6]
                     log(f"Target alignment (View) error in X | Y: {round(ASX, 0)} nm | {round(ASY, 0)} nm")    
                 if "tgtfile" in tgt.keys() and previewAli:                
                     sem.ReadOtherFile(0, "O", tgt["tgtfile"])                                   # reads tgt file for first AlignTo instead
                     sem.L()
-                    sem.AlignTo("O", 0, 0, 0, int(debug)) 
+                    alignTo("O", debug)
                     AISX, AISY, ASX, ASY = sem.ReportAlignShift()[2:6]
                     log(f"Target alignment (Prev) error in X | Y: {round(ASX, 0)} nm | {round(ASY, 0)} nm")
                 elif "viewfile" in tgt.keys() and previewAli:
                     # Use align between mags to align preview image to view image
-                    sem.GoToLowDoseArea("V")                                                    # If ReadOtherFile while in Record, pixel size of Record is used and AlignBetweenMags fails
+                    sem.GoToLowDoseArea("V")                                                    # If ReadOtherFile while in Record, pixel size of Record is used and AlignBetweenMags fails (seems to be fixed in 4.2beta from 14.08.2024)
                     sem.ReadOtherFile(0, "O", tgt["viewfile"])                                  # reads view file for first AlignTo instead
+                    # Check defocus offset
+                    defocus_offset = max(-10, sem.ReportLDDefocusOffset("V"))
+                    sem.ChangeFocus(defocus_offset)                                             # Higher defocus for better correlation, but max at 10 to avoid major distortions
                     sem.L()
                     sem.AlignBetweenMags("O", -1, -1, -1)
                     AISX, AISY, ASX, ASY = sem.ReportAlignShift()[2:6]
+                    sem.ChangeFocus(-defocus_offset)                                            # Reset focus
                     log(f"Target alignment (Pv2V) error in X | Y: {round(ASX, 0)} nm | {round(ASY, 0)} nm")           
 
                 # Save preview image as new reference
@@ -1330,7 +1350,7 @@ else:
             sem.SetBinning("V", int(binning))
             sem.V()
             sem.CropCenterToSize("A", int(x), int(y))
-            sem.AlignTo("P", 0, 0, 0, int(debug))
+            alignTo("P", debug)
             sem.RestoreCameraSet("V")
         else:
             sem.RealignToOtherItem(navID, 1)

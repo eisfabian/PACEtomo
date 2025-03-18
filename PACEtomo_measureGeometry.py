@@ -5,12 +5,14 @@
 #               More information at http://github.com/eisfabian/PACEtomo
 # Author:       Fabian Eisenstein
 # Created:      2022/04/22
-# Revision:     v1.8
+# Revision:     v1.9
 # Last Change:  2024/04/25: adopted fixes from selectTargets script (1.8)
 # ===================================================================
     
 import serialem as sem
 import numpy as np
+
+sem.OKBox("This script is deprecated. Please use the measure geometry function in the selectTargets script GUI!")
 
 groupInfo = sem.ReportGroupStatus()
 groupPoints = groupInfo[2]

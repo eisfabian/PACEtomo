@@ -64,6 +64,7 @@ If everything is set up properly, you can run this script inside a SerialEM scri
 import serialem as sem
 import numpy as np
 from scipy import optimize
+import scikit-image
 import matplotlib.pyplot as plt
 import mrcfile
 sem.OKBox("All necessary modules are installed!")
@@ -144,6 +145,9 @@ There is a variety of ways to select targets and their suitability will be sampl
    - [SPACEtomo](https://github.com/eisfabian/SPACEtomo) can automatically set up targets on lamellae and acquire them on multiple grids at a time.
 
 All targets are saved in the navigator and a *rootname_tgts.txt* file is created. Target 1 is set to *Acquire* and the name of the *rootname_tgts.txt* file is saved in its *Note* entry.
+
+#### Note on selecting targets on a tilted sample:
+In some cases (e.g. lamellae with a high pretilt) it is desirable to select targets on a tilted stage. This can be done only if the used stage tilt will also be the start tilt for the tilt series acquisition. If *PACEtomo_selectTargets* detects a stage tilt other than 0, it will force the *PACEtomo* script to use this tilt as the start tilt.
 
 ### Target editing
 
@@ -270,8 +274,11 @@ PACEtomo runs a grouped dose-symmetric tilt scheme. Before starting the PACEtomo
 | `alignLimit` | `0.5` | Maximum shift [µm] to accept alignment result. This should keep the cross-correlation alignment in check in cases of low contrast. On good stages the alignment error should never be worse than 0.5 µm. |
 | `minCounts` | `0` | If greater than `0`, a branch of a target can be terminated independently if the image mean counts were below the threshold. The counts are considered per second of exposure and the *ReportExposure* command in SerialEM 4.0+ is used to obtain the exposure time. |
 | `ignoreNegStart` | `True` | Usually improves the alignment of the first tilt images from the negative branch and should generally be set to `True`. |
+| `realignToItem` | `False` | If `True`, will use SerialEM's RealignToItem routine instead of simple image realignment (was default in PACEtomo <=v1.9.1). |
 | `refFromPreview` | `False` | If `True`, will save the image taken during `previewAli` and use it as reference for the first Record image instead of the saved reference. |
 | `noZeroRecAli` | `False` | If `True`, will use the saved reference during `previewAli` but ignore it for the first Record image. The tilt series will thus be centered on wherever the first Record image was taken rather than trying to target the saved Preview reference. |
+| `autoStartTilt` | `False` | If `True`, will use measured `pretilt` to set compensating `startTilt` and adjust tilt range accordingly. |
+| `tiltTargets` | `0` | Stage tilt [degrees] at which targets were selected (if not `0`, it will be automatically used as `startTilt`). |
 
 #### Target montage settings (experimental):
 | Setting | Default | Description |
@@ -339,7 +346,29 @@ A selection of video tutorials was uploaded to Youtube. These were recorded usin
 - Images show edges of holes despite vector refinement with hole reference: If the defocus offset for the view mag is large, the image shift calibrations between mags might not be valid anymore. Try lowering the defocus offset or recalibrate the image shifts for large defocus offsets. Especially the "High-Defocus Mag" and especially the "High-Defocus IS" calibrations also help to keep a feature centered when switching from *View* to *Record* state.
 - to be continued...
 
+### Contact
+
+If you could not resolve the issue yourself or you encountered a bug, please report it to the [GitHub Issues](https://github.com/eisfabian/PACEtomo/issues) page or send an email to [spacetomo.help@gmail.com](mailto:spacetomo.help@gmail.com).
+
 ## Recent changes
+
+### 18.03.2025
+#### v1.9.2
+Bug fixes, target selection on tilted stage, more checks and warnings.
+<details>
+<summary>Changes</summary>
+
+- Added `autoStartTilt` function to adjust `startTilt` based on measured `pretilt`.
+- Added `tiltTargets` to set stage tilt at which targets were selected. This value is automatically set by the *selectTargets* script if the stage tilt is not 0.
+- Added `realignToItem` to use simplified realignment routine instead of SerialEM's RealignToItem.
+- Fixed errors caused by `_bset`.
+- Fixed trying to measure geo points that are outside of image shift range.
+- Fixed still remaining file access crashes when using Robocopy or similar.
+- Fixed collection of tilt images beyond min or max tilt in some cases.
+- Fixed crash when View defocus offset was 0.
+- Subtracted dewar refilling time from remaining time estimate.
+</details>
+
 
 ### 18.10.2024
 #### PACEtomo.py [v1.9]

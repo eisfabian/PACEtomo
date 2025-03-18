@@ -5,8 +5,8 @@
 #               More information at http://github.com/eisfabian/PACEtomo
 # Author:       Fabian Eisenstein
 # Created:      2021/04/19
-# Revision:     v1.9.1dev
-# Last Change:  2024/11/01: improved map display on some systems
+# Revision:     v1.9.2
+# Last Change:  2025/01/16: implemented target setup at startTilt
 # ===================================================================
 
 ############ SETTINGS ############ 
@@ -45,7 +45,6 @@ import copy
 import glob
 import numpy as np
 import scipy as sp
-import scipy.optimize
 from scipy.signal import fftconvolve
 from skimage import transform, exposure
 import tkinter as tk
@@ -81,6 +80,9 @@ def parseTargets(targetFile):
         if col[0] == "": continue
         if line.startswith("_set") and len(col) == 4:
             settings[col[1]] = col[3]
+        elif line.startswith("_bset") and len(col) == 4:
+            val = True if col[3].lower() in ["true", "yes", "y", "on"] else False
+            settings[col[1]] = val
         elif line.startswith("_spos"):
             resume["sec"] = int(col[2].split(",")[0])
             resume["pos"] = int(col[2].split(",")[1])
@@ -1538,6 +1540,10 @@ if not dummy:
         sem.Pause("WARNING: Position of Focus area is not 0! Please set it to 0 if you intend to use the Measure Geometry function!")
         sem.SetPersistentVar("warningFocusArea", "")
 
+if int(round(float(sem.ReportTiltAngle()))) != 0 and sem.IsVariableDefined("warningStageTilt") == 0:
+    sem.Pause("WARNING: The stage tilt is not 0! If you select targets at non-zero stage tilt, this tilt has to be used as the start tilt for PACEtomo acquisition!")
+    sem.SetPersistentVar("warningStageTilt", "")
+
 # Set tgts directory
 sem.UserSetDirectory("Please choose a directory for saving targets and tilt series!")
 curDir = sem.ReportDirectory()
@@ -1635,7 +1641,7 @@ if editTgts == 0:
         userName = userName + str(counter)
 
     # align center
-    sem.TiltTo(0)
+    #sem.TiltTo(0)
     sem.ResetImageShift()
     if pointRefine == 1:
         sem.MoveStageTo(*groupStage[0], groupStageZ)
@@ -1674,6 +1680,11 @@ if editTgts == 0:
     target["stageX"], target["stageY"] = sem.AdjustStagePosForNav(stageX, stageY, ISX0, ISY0)
     target["SSX"], target["SSY"] = [0, 0]
     target["viewfile"] = userName + "_tgt_001_view.mrc"
+
+    # Save tilt angle of target setup
+    output = f"_set tiltTargets = {int(round(float(sem.ReportTiltAngle())))}" + 2 * "\n"
+    with open(tgtsFilePath, "a") as f:
+        f.write(output)    
 
     saveNewTarget(tgtsFilePath, targetNo, target)
 

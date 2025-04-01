@@ -6,7 +6,7 @@
 #               More information at http://github.com/eisfabian/PACEtomo
 # Author:       Fabian Eisenstein
 # Created:      2021/04/16
-# Revision:     v1.9.2
+# Revision:     v1.9.2a
 # Last Change:  2025/02/28: fixed tilt range issue, added simplified RealignToItem
 # ===================================================================
 
@@ -95,7 +95,7 @@ breakpoints     = False     # Waits at every debug output for user to press B ke
 
 ########## END SETTINGS ########## 
 
-versionPACE = "1.9.2"
+versionPACE = "1.9.2a"
 
 import serialem as sem
 import os
@@ -1564,6 +1564,7 @@ else:
 
     posResumed = resume["pos"] + 1
 
+    dewarFillTime = 0
     maxProgress = ((maxTilt - minTilt) / step + 1) * (len(position) - skippedTgts)
     # progress = collected images * (positions - skipped positions) + current position - skipped positions scaled assuming homogeneous distribution of skipped positions
     progress = resume["sec"] * (len(position) - skippedTgts) + resume["pos"] - skippedTgts * resume["pos"] / len(position)

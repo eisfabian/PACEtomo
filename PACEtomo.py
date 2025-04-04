@@ -6,8 +6,8 @@
 #               More information at http://github.com/eisfabian/PACEtomo
 # Author:       Fabian Eisenstein
 # Created:      2021/04/16
-# Revision:     v1.9.2a
-# Last Change:  2025/02/28: fixed tilt range issue, added simplified RealignToItem
+# Revision:     v1.9.2b
+# Last Change:  2025/04/04: forced frame names to contain tilt angle
 # ===================================================================
 
 ############ SETTINGS ############ 
@@ -95,7 +95,7 @@ breakpoints     = False     # Waits at every debug output for user to press B ke
 
 ########## END SETTINGS ########## 
 
-versionPACE = "1.9.2a"
+versionPACE = "1.9.2b"
 
 import serialem as sem
 import os
@@ -725,6 +725,8 @@ def Tilt(tilt):
 ### Record
         if checkDewar: checkFilling()
         checkValves()
+        sem.SetFrameNameFormat(0, 0, 0x40)                                                      # turn off Sequential number
+        sem.SetFrameNameFormat(0, 1, 0x400)                                                     # turn on tilt angle
         sem.SetFrameBaseName(0, 1, 0, os.path.splitext(targets[pos]["tsfile"])[0])              # change frame name in accordance with tilt series
         if beamTiltComp: 
             sem.AdjustBeamTiltforIS()

@@ -100,6 +100,7 @@ versionPACE = "1.9.2c"
 
 import serialem as sem
 import os
+import sys
 import copy
 import time
 import struct
@@ -394,18 +395,21 @@ def writeExtendedHeader(filename, section_data):
 def sortTS(ts_name):
     # Check for SPACEtomo installation to run sorting in background
     try:
-        from SPACEtomo import __version__ as SPACEtomo_version
+        import SPACEtomo
+        import inspect
+        cli = Path(inspect.getfile(SPACEtomo)).parent / "CLI.py"
+        SPACEtomo_version = SPACEtomo.__version__
     except ImportError:
         SPACEtomo_version = "0.0.0"
     
     from packaging.version import Version
-    if Version(SPACEtomo_version) > Version("1.3.1"):
+    if Version(SPACEtomo_version) >= Version("1.3.1b19"):
         log(f"Sorting {ts_name} by tilt angle in background using SPACEtomo...")
         DETACHED_PROCESS = 0x00000008 # From here: https://stackoverflow.com/questions/89228/calling-an-external-command-in-python#2251026
         try:
-            subprocess.Popen(["SPACEtomo", "sort", Path(curDir) / f"{ts_name}"], creationflags=DETACHED_PROCESS)
+            subprocess.Popen([sys.executable, cli, "sort", Path(curDir) / f"{ts_name}"], creationflags=DETACHED_PROCESS)
         except ValueError:      # Creationflags only supported on Windows
-            subprocess.Popen(["SPACEtomo", "sort", Path(curDir) / f"{ts_name}"])
+            subprocess.Popen([sys.executable, cli, "sort", Path(curDir) / f"{ts_name}"])
         return
     log(f"NOTE: Consider installing or updating SPACEtomo to sort tilt series in background!")
 

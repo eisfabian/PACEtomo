@@ -7,8 +7,8 @@
 # Author:       Fabian Eisenstein
 # Created:      2021/04/16
 # Revision:     v1.9.2c
-# Last Change:  2025/04/30: added external sortByTilt
-#               2025/04/04: forced frame names to contain tilt angle
+# Last Change:  2025/06/04: fixes after LD area Krios3 test
+#               2025/04/30: added external sortByTilt
 # ===================================================================
 
 ############ SETTINGS ############ 
@@ -707,6 +707,9 @@ def Tilt(tilt):
 
         sem.AreaForCumulRecordDose(pos + 1)                                                     # set area to accumulate record dose (counting from 1)
 
+        # Change to given low dose area
+        sem.GoToLowDoseArea(targets[pos]["LDArea"])
+
 ### Calculate and apply predicted shifts
         SSchange = 0                                                                            # only apply changes if not startTilt
         focuschange = 0
@@ -753,10 +756,18 @@ def Tilt(tilt):
         sem.SetFrameNameFormat(0, 0, 0x40)                                                      # turn off Sequential number
         sem.SetFrameNameFormat(0, 1, 0x400)                                                     # turn on tilt angle
         sem.SetFrameBaseName(0, 1, 0, os.path.splitext(targets[pos]["tsfile"])[0])              # change frame name in accordance with tilt series
+
         if beamTiltComp: 
             sem.AdjustBeamTiltforIS()
         sem.Delay(delayIS, "s")
-        sem.R()
+
+        # Record image or given low dose area image
+        if targets[pos]["LDArea"] == "V":
+            sem.View()
+        if targets[pos]["LDArea"] == "S":
+            sem.Search()
+        else:
+            sem.R()
         sem.S()
 
         bufISXpre = 0                                                                           # only non 0 if two tracking images are taken
@@ -769,7 +780,12 @@ def Tilt(tilt):
                 ASX, ASY = sem.ReportAlignShift()[4:6]
                 if abs(ASX) > alignLimit * 1000 or abs(ASY) > alignLimit * 1000:
                     bufISXpre, bufISYpre = sem.ReportISforBufferShift()                         # have to be added only to ISset but not ISali (since ali only considers the IS chain of ali images)
-                    sem.R()
+                    if targets[pos]["LDArea"] == "V":
+                        sem.View()
+                    if targets[pos]["LDArea"] == "S":
+                        sem.Search()
+                    else:
+                        sem.R()
                     sem.S()
                     alignTo("O", debug)
 
@@ -819,7 +835,12 @@ def Tilt(tilt):
                     if beamTiltComp: 
                         sem.AdjustBeamTiltforIS()
                     sem.Delay(delayIS, "s")
-                    sem.R()
+                    if targets[pos]["LDArea"] == "V":
+                        sem.View()
+                    if targets[pos]["LDArea"] == "S":
+                        sem.Search()
+                    else:
+                        sem.R()
                     sem.S()
 
                     mont_SSX, mont_SSY = sem.ReportSpecimenShift()
@@ -1337,6 +1358,12 @@ if not recover:
     positionFocus = focus0                                                                      # set maxDefocus as focus0 and add focus steps in loop
     minFocus0 = focus0 - maxDefocus + minDefocus
 
+    # Get defocus offsets for LD Areas
+    focus_offset_LD = {}
+    focus_offset_LD["R"] = 0
+    focus_offset_LD["V"] = sem.ReportLDDefocusOffset("V")
+    focus_offset_LD["S"] = sem.ReportLDDefocusOffset("S")
+
     sem.GoToLowDoseArea("R")
     s2ssMatrix = np.array(sem.StageToSpecimenMatrix(0)).reshape((2, 2))
     is2ssMatrix = np.array(sem.ISToSpecimenMatrix(0)).reshape((2, 2))
@@ -1381,6 +1408,10 @@ if not recover:
             skippedTgts += 1
             continue
 
+        # Set default LDArea to Record
+        if "LDArea" not in tgt.keys():
+            tgt["LDArea"] = "R"
+
         if tiltTargets == 0:
             tiltScaling = np.cos(np.radians(pretilt * np.cos(np.radians(rotation)) + startTilt)) / np.cos(np.radians(pretilt * np.cos(np.radians(rotation)))) # stretch shifts from 0 tilt to startTilt
         else:
@@ -1404,31 +1435,35 @@ if not recover:
                     alignTo("O", debug)
                     ASX, ASY = sem.ReportAlignShift()[4:6]
                     log(f"Target alignment (View) error in X | Y: {round(ASX, 0)} nm | {round(ASY, 0)} nm")    
-                if "tgtfile" in tgt.keys() and previewAli:                
+                if "tgtfile" in tgt.keys() and previewAli and tgt["LDArea"] == "R":                
                     sem.ReadOtherFile(0, "O", tgt["tgtfile"])                                   # reads tgt file for first AlignTo instead
                     sem.L()
                     alignTo("O", debug)
                     AISX, AISY, ASX, ASY = sem.ReportAlignShift()[2:6]
                     log(f"Target alignment (Prev) error in X | Y: {round(ASX, 0)} nm | {round(ASY, 0)} nm")
-                elif "viewfile" in tgt.keys() and previewAli:
+                elif "viewfile" in tgt.keys() and previewAli and tgt["LDArea"] != "V":
                     # Use align between mags to align preview image to view image
                     if not viewAli:
-                        #sem.GoToLowDoseArea("V")                                                # If ReadOtherFile while in Record, pixel size of Record is used and AlignBetweenMags fails (seems to be fixed in 4.2beta from 14.08.2024)
+                        #sem.GoToLowDoseArea("V")                                               # If ReadOtherFile while in Record, pixel size of Record is used and AlignBetweenMags fails (seems to be fixed in 4.2beta from 14.08.2024)
                         sem.ReadOtherFile(0, "O", tgt["viewfile"])                              # reads view file for first AlignTo instead
                     else:
                         # If View image was already aligned, take new centered View image at startTilt and use as reference instead
                         sem.V()
                         sem.Copy("A", "O")
+                    
                     # Check defocus offset
-                    sem.GoToLowDoseArea("R")                                                    # Switch to R before applying defocus offset to not mess with potential mP/nP offsets between View and Rec
-                    defocus_offset = max(-10, sem.ReportLDDefocusOffset("V"))
-                    if defocus_offset != 0:
-                        sem.ChangeFocus(defocus_offset)                                             # Higher defocus for better correlation, but max at 10 to avoid major distortions
-                    sem.L()
+                    if tgt["LDArea"] == "R":
+                        sem.GoToLowDoseArea("R")                                                # Switch to R before applying defocus offset to not mess with potential mP/nP offsets between View and Rec
+                        defocus_offset = max(-10, sem.ReportLDDefocusOffset("V"))
+                        if defocus_offset != 0:
+                            sem.ChangeFocus(defocus_offset)                                     # Higher defocus for better correlation, but max at 10 to avoid major distortions
+                        sem.L()
+                    elif tgt["LDArea"] == "S":
+                        sem.Search()
                     sem.AlignBetweenMags("O", -1, -1, -1)
                     AISX, AISY, ASX, ASY = sem.ReportAlignShift()[2:6]
                     if defocus_offset != 0:
-                        sem.ChangeFocus(-defocus_offset)                                            # Reset focus
+                        sem.ChangeFocus(-defocus_offset)                                        # Reset focus
                     log(f"Target alignment (Pv2V) error in X | Y: {round(ASX, 0)} nm | {round(ASY, 0)} nm")           
 
                 # Save preview image as new reference
@@ -1439,13 +1474,14 @@ if not recover:
                     position[-1][0]["ISXali"] = AISX                                            # Save shifts to real reference
                     position[-1][0]["ISYali"] = AISY 
 
-            sem.GoToLowDoseArea("R")
+            sem.GoToLowDoseArea(tgt["LDArea"])
         ISXset, ISYset, *_ = sem.ReportImageShift()
         SSX, SSY = sem.ReportSpecimenShift()
+        sem.GoToLowDoseArea(targets[0]["LDArea"])                                               # Apply image shifts in center position LD area (necessary?)
         sem.SetImageShift(ISX0, ISY0)                                                           # reset IS to center position    
 
         z0_ini = np.tan(np.radians(pretilt)) * (np.cos(np.radians(rotation)) * float(tgt["SSY"]) - np.sin(np.radians(rotation)) * float(tgt["SSX"]))
-        correctedFocus = positionFocus - z0_ini * np.cos(np.radians(startTilt)) - float(tgt["SSY"]) * np.sin(np.radians(startTilt))
+        correctedFocus = positionFocus - z0_ini * np.cos(np.radians(startTilt)) - float(tgt["SSY"]) * np.sin(np.radians(startTilt)) + focus_offset_LD[tgt["LDArea"]]  # correctedFocus = focus0 - z0 * cos(startTilt) - SSY * sin(startTilt) + defocus offset for LDArea
 
         position[-1][0]["SSX"] = float(SSX)
         position[-1][0]["SSY"] = float(SSY)

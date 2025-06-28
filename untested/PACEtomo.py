@@ -740,13 +740,14 @@ def Tilt(tilt):
 
 ### Autofocus (optional) and tracking TS settings
         if pos == 0:
-            if addAF and (tilt - startTilt) % (groupSize * increment) == step and abs(tilt - startTilt) > step:
+            if addAF and (tilt - startTilt) % (groupSize * step) == step and abs(tilt - startTilt) > step:
                 sem.G(-1)
                 defocus, *_ = sem.ReportAutoFocus()
                 focuserror = float(defocus) - targetDefocus
                 for i in range(0, len(position)):
                     position[i][pn]["focus"] -= focuserror
                 sem.SetDefocus(position[pos][pn]["focus"])
+                sem.GoToLowDoseArea(targets[pos]["LDArea"])
 
             setTrack()
 
@@ -764,7 +765,7 @@ def Tilt(tilt):
         # Record image or given low dose area image
         if targets[pos]["LDArea"] == "V":
             sem.View()
-        if targets[pos]["LDArea"] == "S":
+        elif targets[pos]["LDArea"] == "S":
             sem.Search()
         else:
             sem.R()

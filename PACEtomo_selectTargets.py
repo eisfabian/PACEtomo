@@ -5,7 +5,7 @@
 #               More information at http://github.com/eisfabian/PACEtomo
 # Author:       Fabian Eisenstein
 # Created:      2021/04/19
-# Revision:     v1.9.2
+# Revision:     v1.9.2a
 # Last Change:  2025/01/16: implemented target setup at startTilt
 # ===================================================================
 
@@ -49,6 +49,8 @@ from scipy.signal import fftconvolve
 from skimage import transform, exposure
 import tkinter as tk
 from tkinter import ttk
+import matplotlib
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import matplotlib.lines
 import matplotlib.path
@@ -335,7 +337,7 @@ def loopAddTargets():
 # Source: https://stackoverflow.com/a/52062369
 def angles_in_ellipse(num, a, b):
     assert(num > 0)
-    assert(a < b)
+    assert(a <= b)
     angles = 2 * np.pi * np.arange(num) / num
     if a != b:
         e2 = (1.0 - a ** 2.0 / b ** 2.0)

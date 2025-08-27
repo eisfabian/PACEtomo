@@ -6,8 +6,8 @@
 #               More information at http://github.com/eisfabian/PACEtomo
 # Author:       Fabian Eisenstein
 # Created:      2021/04/16
-# Revision:     v1.9.2b
-# Last Change:  2025/04/04: forced frame names to contain tilt angle
+# Revision:     v1.9.2c
+# Last Change:  2025/04/30: added external sortByTilt
 # ===================================================================
 
 ############ SETTINGS ############ 
@@ -95,10 +95,11 @@ breakpoints     = False     # Waits at every debug output for user to press B ke
 
 ########## END SETTINGS ########## 
 
-versionPACE = "1.9.2b"
+versionPACE = "1.9.2c"
 
 import serialem as sem
 import os
+import sys
 import copy
 import time
 import struct
@@ -107,7 +108,10 @@ import glob
 from functools import wraps
 import numpy as np
 from scipy import optimize
-if sortByTilt: import mrcfile
+if sortByTilt: 
+    import subprocess
+    import mrcfile
+    from pathlib import Path
 
 versionCheck = sem.IsVersionAtLeast("40200", "20240814")
 if not versionCheck and sem.IsVariableDefined("warningVersion") == 0:
@@ -164,7 +168,7 @@ def checkSlit(vec, size, tilt, pn):                                             
 
 def checkValves():
     if not int(sem.ReportColumnOrGunValve()):
-        sem.SetColumndOrGunValve(1)
+        sem.SetColumnOrGunValve(1)
 
 def retryOpen(max_attempts=5, delay=5):
     """Decorator to retry function on permission exception."""
@@ -388,6 +392,26 @@ def writeExtendedHeader(filename, section_data):
 
 @retryOpen()
 def sortTS(ts_name):
+    # Check for SPACEtomo installation to run sorting in background
+    try:
+        import SPACEtomo
+        import inspect
+        cli = Path(inspect.getfile(SPACEtomo)).parent / "CLI.py"
+        SPACEtomo_version = SPACEtomo.__version__
+    except ImportError:
+        SPACEtomo_version = "0.0.0"
+    
+    from packaging.version import Version
+    if Version(SPACEtomo_version) >= Version("1.3.1b19"):
+        log(f"Sorting {ts_name} by tilt angle in background using SPACEtomo...")
+        DETACHED_PROCESS = 0x00000008 # From here: https://stackoverflow.com/questions/89228/calling-an-external-command-in-python#2251026
+        try:
+            subprocess.Popen([sys.executable, cli, "sort", Path(curDir) / f"{ts_name}"], creationflags=DETACHED_PROCESS)
+        except ValueError:      # Creationflags only supported on Windows
+            subprocess.Popen([sys.executable, cli, "sort", Path(curDir) / f"{ts_name}"])
+        return
+    log(f"NOTE: Consider installing or updating SPACEtomo to sort tilt series in background!")
+
     log(f"Sorting {ts_name} by tilt angle...")
     if os.path.exists(os.path.join(curDir, ts_name + ".mdoc")):
         # Read mdoc file
@@ -712,7 +736,7 @@ def Tilt(tilt):
 
 ### Autofocus (optional) and tracking TS settings
         if pos == 0:
-            if addAF and (tilt - startTilt) % (groupSize * increment) == step and abs(tilt - startTilt) > step:
+            if addAF and (tilt - startTilt) % (groupSize * step) == step and abs(tilt - startTilt) > step:
                 sem.G(-1)
                 defocus, *_ = sem.ReportAutoFocus()
                 focuserror = float(defocus) - targetDefocus

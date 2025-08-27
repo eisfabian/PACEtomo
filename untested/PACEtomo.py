@@ -169,7 +169,7 @@ def checkSlit(vec, size, tilt, pn):                                             
 
 def checkValves():
     if not int(sem.ReportColumnOrGunValve()):
-        sem.SetColumndOrGunValve(1)
+        sem.SetColumnOrGunValve(1)
 
 def retryOpen(max_attempts=5, delay=5):
     """Decorator to retry function on permission exception."""
@@ -492,9 +492,12 @@ def checkFrames(ts_name):
     # Check if frame saving is available by checking if warning was accepted by user at start of script
     if sem.IsVariableDefined("warningFramePath") == 0:
         # Make sure frames were saved
-        frame_file, frame_dir, frame_name = sem.ReportLastFrameFile()
-        if checkFrames and len(glob.glob(os.path.join(frame_dir, os.path.splitext(ts_name)[0] + "*"))) > 0:
-            return True
+        try:
+            frame_file, frame_dir, frame_name = sem.ReportLastFrameFile()
+            if len(glob.glob(os.path.join(frame_dir, os.path.splitext(ts_name)[0] + "*"))) > 0:
+                return True
+        except sem.SEMerror:
+            log(f"DEBUG: No last frame file found. Assuming no frames were saved.")
 
     log(f"WARNING: Frames for {ts_name} could not be found. Keeping tilt stack unprocessed.")
     return False

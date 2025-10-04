@@ -181,7 +181,7 @@ def retryOpen(max_attempts=5, delay=5):
             while attempts < max_attempts:
                 try:
                     return func(*args, **kwargs)
-                except PermissionError as e:
+                except (PermissionError, sem.SEMerror) as e:
                     attempts += 1
                     if attempts == max_attempts:
                         raise e
@@ -286,6 +286,10 @@ def updateTargets(fileName, targets, position=[], sec=0, pos=0):
         output += "\n"
     with open(fileName, "w") as f:
         f.write(output)
+
+@retryOpen()
+def writeAutodoc():
+    sem.WriteAutodoc()
 
 def geoPlane(x, a, b):
     return a * x[0] + b * x[1]
@@ -856,7 +860,7 @@ def Tilt(tilt):
                     # Add shift to all montage tilt series mdoc files for auto stitching
                     if extendedMdoc:
                         sem.AddToAutodoc("PixelShiftFromCenter", pixelShiftFromCenter)
-                        sem.WriteAutodoc()
+                        writeAutodoc()
 
                     sem.CloseFile()
 
@@ -969,7 +973,7 @@ def Tilt(tilt):
                 sem.AddToAutodoc("CtfFind", str(cfind[0]))
             if doCtfPlotter:
                 sem.AddToAutodoc("Ctfplotter", str(cplot[0]))
-            sem.WriteAutodoc()
+            writeAutodoc()
 
         sem.CloseFile()
 

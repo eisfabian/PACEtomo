@@ -1470,6 +1470,7 @@ if not recover:
                         sem.Search()
                     sem.AlignBetweenMags("O", -1, -1, -1)
                     AISX, AISY, ASX, ASY = sem.ReportAlignShift()[2:6]
+                    defocus_offset = max(-10, sem.ReportLDDefocusOffset("V"))
                     if defocus_offset != 0:
                         sem.ChangeFocus(-defocus_offset)                                        # Reset focus
                     log(f"Target alignment (Pv2V) error in X | Y: {round(ASX, 0)} nm | {round(ASY, 0)} nm")           
@@ -1709,4 +1710,5 @@ if recoverInput == 1:
 log(datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
 log(f"##### All tilt series completed in {totalTime} min ({perTime} min per tilt series) #####", color=3, style=1)
 sem.SaveLog()
+
 sem.Exit()

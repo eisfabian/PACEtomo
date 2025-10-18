@@ -6,8 +6,9 @@
 #               More information at http://github.com/eisfabian/PACEtomo
 # Author:       Fabian Eisenstein
 # Created:      2021/04/16
-# Revision:     v1.9.2c
-# Last Change:  2025/06/04: fixes after LD area Krios3 test
+# Revision:     v1.9.2d
+# Last Change:  2025/10/18: fixed crash when using both trackExpTime and zeroExpTime
+#               2025/06/04: fixes after LD area Krios3 test
 #               2025/04/30: added external sortByTilt
 # ===================================================================
 
@@ -622,6 +623,8 @@ def Tilt(tilt):
     def resetTrack():
         if trackExpTime > 0:
             sem.RestoreCameraSet("R")
+            if zeroExpTime > 0 and tilt == startTilt:
+                sem.SetExposure("R", zeroExpTime)
         if trackMag > 0:
             while sem.ReportMag()[0] != origMag:                                                # has to be checked, because Rec is sometimes not updated (JEOL)
                 sem.SetMag(origMag)

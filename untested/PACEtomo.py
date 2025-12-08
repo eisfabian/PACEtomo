@@ -6,8 +6,9 @@
 #               More information at http://github.com/eisfabian/PACEtomo
 # Author:       Fabian Eisenstein
 # Created:      2021/04/16
-# Revision:     v1.9.2d
-# Last Change:  2025/10/18: fixed crash when using both trackExpTime and zeroExpTime
+# Revision:     v1.9.2e
+# Last Change:  2025/12/08: added Trial LD area for tracking TS as an option, added non-square option for target montage
+#               2025/10/18: fixed crash when using both trackExpTime and zeroExpTime
 #               2025/06/04: fixes after LD area Krios3 test
 #               2025/04/30: added external sortByTilt
 # ===================================================================
@@ -34,6 +35,7 @@ trackExpTime    = 0         # set to exposure time [s] used for tracking tilt se
 trackDefocus    = 0         # set to defocus [microns] used for tracking tilt series, if 0: use same defocus range for all tilt series
 trackMag        = 0         # set to nominal magnification for tracking tilt series (make sure detector is still covered under the same beam conditions), if 0: use same mag for all tilt series
 trackTwice      = False     # track in 2 steps, useful when large tracking shifts cause inaccuracies in alignment and hence, in residual errors for all targets, but causes double exposure of tracking area
+trackUseTrial   = False     # Use Trial Low Dose Area for the tracking tilt series (not recommended unless you need to change the illuminated area)
 
 # Geometry settings
 pretilt         = 0         # pretilt [degrees] of sample in deg e.g. after FIB milling (if milling direction is not perpendicular to the tilt axis, estimate and add rotation)
@@ -86,7 +88,7 @@ tiltTargets     = 0         # Stage tilt at which targets were selected (if not 
 
 # Target montage settings
 tgtMontage      = False     # collect montage for each target using the shorter camera dimension (e.g. for square aperture montage tomography)
-tgtMntSize      = 1         # size of montage pattern (1: 3x3, 2: 5x5, 3: 7x7, ...)
+tgtMntSize      = [1, 1]    # size of montage pattern, has to be odd numbers (e.g.: [3, 3], [3, 5], [9, 7], ...)
 tgtMntOverlap   = 0.05      # montage tile overlap as fraction of shorter camera dimension
 tgtMntXOffset   = 0         # max offset [microns] applied along tilt axis throughout tilt series (+tgtMntXOffset is reached at maxTilt, -tgtMntXOffset at minTilt)
 tgtMntFocusCor  = False     # do focus compensation for tiles of montage
@@ -596,17 +598,21 @@ def Tilt(tilt):
 
     def setTrack():
         global trackMag, origMag
+        if trackUseTrial:
+            ld_area = "T"
+        else:
+            ld_area = "R"
         if trackDefocus < maxDefocus:
             sem.SetDefocus(position[0][pn]["focus"] + trackDefocus - targetDefocus)
         if trackExpTime > 0:
             if tilt == startTilt:
-                sem.SetExposure("R", max(trackExpTime, zeroExpTime))
+                sem.SetExposure(ld_area, max(trackExpTime, zeroExpTime))
             else:
-                sem.SetExposure("R", trackExpTime)
+                sem.SetExposure(ld_area, trackExpTime)
         if trackMag > 0:
             if tilt == startTilt:
                 origMag, *_ = sem.ReportMag()
-                sem.UpdateLowDoseParams("R")
+                sem.UpdateLowDoseParams(ld_area)
             attempt = 0
             while sem.ReportMag()[0] == origMag:                                                # has to be checked, because Rec is sometimes not updated (JEOL)
                 if attempt >= 10:
@@ -614,21 +620,25 @@ def Tilt(tilt):
                     trackMag = 0
                     break
                 sem.SetMag(trackMag)
-                sem.GoToLowDoseArea("R")
+                sem.GoToLowDoseArea(ld_area)
                 attempt += 1
             sem.SetImageShift(position[0][pn]["ISXset"], position[0][pn]["ISYset"])
             if not recover:
                 sem.ImageShiftByMicrons(0, SSchange)    
 
     def resetTrack():
+        if trackUseTrial:
+            ld_area = "T"
+        else:
+            ld_area = "R"
         if trackExpTime > 0:
-            sem.RestoreCameraSet("R")
+            sem.RestoreCameraSet(ld_area)
             if zeroExpTime > 0 and tilt == startTilt:
-                sem.SetExposure("R", zeroExpTime)
+                sem.SetExposure(ld_area, zeroExpTime)
         if trackMag > 0:
             while sem.ReportMag()[0] != origMag:                                                # has to be checked, because Rec is sometimes not updated (JEOL)
                 sem.SetMag(origMag)
-                sem.GoToLowDoseArea("R")
+                sem.GoToLowDoseArea(ld_area)
 
     global recover
 
@@ -675,7 +685,10 @@ def Tilt(tilt):
         SSchange = 0                                                                            # needs to be defined for setTrack
         setTrack()
         if checkDewar: checkFilling()
-        sem.L()
+        if trackUseTrial:
+            sem.T()
+        else:
+            sem.L()
         alignTo("O", debug)
         bufISX, bufISY = sem.ReportISforBufferShift()
         sem.ImageShiftByUnits(position[0][pn]["ISXali"], position[0][pn]["ISYali"])             # remove accumulated buffer shifts to calculate alignment to initial startTilt image
@@ -759,6 +772,9 @@ def Tilt(tilt):
                 sem.SetDefocus(position[pos][pn]["focus"])
                 sem.GoToLowDoseArea(targets[pos]["LDArea"])
 
+            if trackUseTrial:
+                sem.GoToLowDoseArea("T")
+
             setTrack()
 
 ### Record
@@ -773,7 +789,9 @@ def Tilt(tilt):
         sem.Delay(delayIS, "s")
 
         # Record image or given low dose area image
-        if targets[pos]["LDArea"] == "V":
+        if trackUseTrial and pos == 0:
+            sem.T()
+        elif targets[pos]["LDArea"] == "V":
             sem.View()
         elif targets[pos]["LDArea"] == "S":
             sem.Search()
@@ -791,7 +809,9 @@ def Tilt(tilt):
                 ASX, ASY = sem.ReportAlignShift()[4:6]
                 if abs(ASX) > alignLimit * 1000 or abs(ASY) > alignLimit * 1000:
                     bufISXpre, bufISYpre = sem.ReportISforBufferShift()                         # have to be added only to ISset but not ISali (since ali only considers the IS chain of ali images)
-                    if targets[pos]["LDArea"] == "V":
+                    if trackUseTrial:
+                        sem.T()
+                    elif targets[pos]["LDArea"] == "V":
                         sem.View()
                     if targets[pos]["LDArea"] == "S":
                         sem.Search()
@@ -817,8 +837,8 @@ def Tilt(tilt):
         # Collect surrounding tiles for montage tilt series
         if tgtMontage and (tgtTrackMnt or pos != 0):
             sem.ImageShiftByUnits(-bufISX - position[pos][pn]["ISXali"], -bufISY - position[pos][pn]["ISYali"]) # reset shifts to already taken center image
-            for i in range(-tgtMntSize, tgtMntSize + 1):
-                for j in range(-tgtMntSize, tgtMntSize + 1):
+            for i in range(-tgtMntSize[0] // 2, tgtMntSize[0] // 2 + 1):
+                for j in range(-tgtMntSize[1] // 2, tgtMntSize[1] // 2 + 1):
                     if i == j == 0: continue
                     if tilt != startTilt:
                         openOldFile(os.path.splitext(targets[pos]["tsfile"])[0] + "_" + str(i) + "_" + str(j) + ".mrc")
@@ -846,9 +866,11 @@ def Tilt(tilt):
                     if beamTiltComp: 
                         sem.AdjustBeamTiltforIS()
                     sem.Delay(delayIS, "s")
-                    if targets[pos]["LDArea"] == "V":
+                    if trackUseTrial and pos == 0:
+                        sem.T()
+                    elif targets[pos]["LDArea"] == "V":
                         sem.View()
-                    if targets[pos]["LDArea"] == "S":
+                    elif targets[pos]["LDArea"] == "S":
                         sem.Search()
                     else:
                         sem.R()
@@ -1110,6 +1132,10 @@ if (maxTilt - startTilt) % step != 0 or (startTilt - minTilt) % step != 0:
     maxTilt = round(int((maxTilt - startTilt) / step) * step + startTilt, 1)
     minTilt = round(int((minTilt - startTilt) / step) * step + startTilt, 1)
     print(f"WARNING: Tilt increment does not divide evenly into tilt range. Tilt range will be adjusted to: {minTilt}, {maxTilt}")
+if tgtMntSize[0] % 2 != 1 or tgtMntSize[1] % 2 != 1:
+    if tgtMntSize[0] % 2 != 1: tgtMntSize[0] += 1
+    if tgtMntSize[1] % 2 != 1: tgtMntSize[1] += 1
+    print(f"WARNING: Montage size must be odd to accommodate image on target center. Montage size will be adjusted to: {tgtMntSize}")
 
 ### Recovery data
 recoverInput = 0

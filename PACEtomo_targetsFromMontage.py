@@ -3,8 +3,9 @@
 #ScriptName     PACEtomo_targetsFromMontage
 # Author:       Fabian Eisenstein
 # Created:      2022/12/09
-# Revision:     v1.8beta
-# Last Change:  2024/05/14: added warning for items not on map, added proper check for camera type
+# Revision:     v1.9
+# Last Change:  2026/01/31: added onlyView mode to skip generation of Preview maps
+#               2024/05/14: added warning for items not on map, added proper check for camera type
 
 # Take a montage of your target area. 
 # Select targets using the navigator with "Add Points" (points have to be part of the same group).
@@ -16,6 +17,7 @@
 
 ##### SETTINGS #####
 
+onlyView = False    # set to True to only create View maps and not Preview maps and targets file
 noUI    = False     # set to True to avoid folder/name selection (e.g. to run the script in a Acquire at Items routine), it will use the label of the montage as name template
 prefix  = "pos"     # prefix for name when running noUI
 
@@ -134,8 +136,14 @@ def CropImage(image, coords, fov):
 s2ssMatrix = None
 dummy = False
 if sem.ReportProperty("DummyInstance") == 1:
-    sem.Echo("WARNING: You are using SerialEM in DUMMY mode. Make sure a View image and Preview image template are available in the Navigator!")
+    if not onlyView:
+        sem.Echo("WARNING: You are using SerialEM in DUMMY mode. Make sure a View image and Preview image template are available in the Navigator!")
+    else:
+        sem.Echo("WARNING: You are using SerialEM in DUMMY mode. Make sure a View image template is available in the Navigator!")
     dummy = True
+
+if onlyView:
+    sem.Echo("NOTE: Running in View-only mode: Only View maps will be created. Please change the setting in the script if you want to create Preview maps as well.")
 
 # Get nav item info
 
@@ -181,11 +189,11 @@ if counter > 1:
 
 prevID = int(sem.NavIndexWithNote("Template Preview"))
 viewID = int(sem.NavIndexWithNote("Template View"))
-if prevID == 0 or viewID == 0:
+if (prevID == 0 and not onlyView) or viewID == 0:
     if not dummy:
         sem.SetColumnOrGunValve(0)
         sem.AllowFileOverwrite(1)
-        if prevID == 0:
+        if prevID == 0 and not onlyView:
             sem.OpenNewFile("template_preview.mrc")
             sem.L()
             sem.S()
@@ -211,25 +219,27 @@ if prevID == 0 or viewID == 0:
 
 # Load templates to get pixel sizes
 
-sem.LoadOtherMap(prevID, "A")
+sem.LoadOtherMap(viewID, "A")
 imgProp = sem.ImageProperties("A")
+viewPixSize = imgProp[4] * 10 / imgProp[2]
+
+if not onlyView:
+    sem.LoadOtherMap(prevID, "A")
+    imgProp = sem.ImageProperties("A")
+    recordPixSize = imgProp[4] * 10 / imgProp[2]
+
+    if recordPixSize == viewPixSize:
+        sem.OKBox("ERROR: Template for View or Preview show the same pixel size! Make sure the maps could be loaded properly!")
+        sem.Echo("ERROR: Template for View or Preview show the same pixel size! Make sure the maps could be loaded properly!")
+        sem.Exit()
+
 camX = imgProp[0] * imgProp[2]
 camY = imgProp[1] * imgProp[2]
-recordPixSize = imgProp[4] * 10 / imgProp[2]
 
 if sem.ReportCameraProperty(0, "K2Type") > 0:
     binFactor = 2           # gatan cameras need the extra binning factor because SR is bin 1 
 else:
     binFactor = 1
-
-sem.LoadOtherMap(viewID, "A")
-imgProp = sem.ImageProperties("A")
-viewPixSize = imgProp[4] * 10 / imgProp[2]
-
-if recordPixSize == viewPixSize:
-    sem.OKBox("ERROR: Template for View or Preview show the same pixel size! Make sure the maps could be loaded properly!")
-    sem.Echo("ERROR: Template for View or Preview show the same pixel size! Make sure the maps could be loaded properly!")
-    sem.Exit()
 
 # Make sure s2s matrix is defined
 
@@ -263,18 +273,24 @@ groupImageY = np.array(sem.GetVariable("groupImageY").split(), dtype=float)
 
 # Calculate field of view
 
-fov_recX = int(camX * recordPixSize / pixSize)
-fov_recY = int(camY * recordPixSize / pixSize)
+if not onlyView:
+    fov_recX = int(camX * recordPixSize / pixSize)
+    fov_recY = int(camY * recordPixSize / pixSize)
+
+    out_bin_rec = min(8, int(pixSize / recordPixSize))  # binning factor of the created virtual map for Record mode (needs to be int)
+    if out_bin_rec < 8:
+        if out_bin_rec < 4:
+            if out_bin_rec > 1:
+                out_bin_rec = 2
+        else:
+            out_bin_rec = 4
+
+    out_recX = int(camX / out_bin_rec)
+    out_recY = int(camY / out_bin_rec)
+
 fov_viewX = int(camX * viewPixSize / pixSize)
 fov_viewY = int(camY * viewPixSize / pixSize)
 
-out_bin_rec = min(8, int(pixSize / recordPixSize))  # binning factor of the created virtual map for Record mode (needs to be int)
-if out_bin_rec < 8:
-    if out_bin_rec < 4:
-        if out_bin_rec > 1:
-            out_bin_rec = 2
-    else:
-        out_bin_rec = 4
 out_bin_view = min(8, int(pixSize / viewPixSize))   # binning factor of the created virtual map for View mode (needs to be int)
 if out_bin_view < 8:
     if out_bin_view < 4:
@@ -282,8 +298,7 @@ if out_bin_view < 8:
             out_bin_view = 2
     else:
         out_bin_view = 4
-out_recX = int(camX / out_bin_rec)
-out_recY = int(camY / out_bin_rec)
+
 out_viewX = int(camX / out_bin_view)
 out_viewY = int(camY / out_bin_view)
 
@@ -294,10 +309,11 @@ targets = []
 for i in range(groupStageX.size):
     sem.Echo("Creating virtual map of point " + str(i + 1) + "...")
 
-    imageCrop = CropImage(image, (groupImageY[i], groupImageX[i]), (fov_recY, fov_recX))
-    imageProc = np.flip(resize(imageCrop, (out_recY, out_recX), preserve_range=True, anti_aliasing=True).astype(np.float32), axis=0)
-    tgtImages.append(imageProc)
-    WriteMrc(userName + "_tgt_" + str(i + 1).zfill(3) + ".mrc", tgtImages[i], recordPixSize * out_bin_rec)
+    if not onlyView:
+        imageCrop = CropImage(image, (groupImageY[i], groupImageX[i]), (fov_recY, fov_recX))
+        imageProc = np.flip(resize(imageCrop, (out_recY, out_recX), preserve_range=True, anti_aliasing=True).astype(np.float32), axis=0)
+        tgtImages.append(imageProc)
+        WriteMrc(userName + "_tgt_" + str(i + 1).zfill(3) + ".mrc", tgtImages[i], recordPixSize * out_bin_rec)
 
     imageCrop = CropImage(image, (groupImageY[i], groupImageX[i]), (fov_viewY, fov_viewX))
     viewImageProc = np.flip(resize(imageCrop, (out_viewY, out_viewX), preserve_range=True, anti_aliasing=True).astype(np.float32), axis=0)
@@ -307,9 +323,22 @@ for i in range(groupStageX.size):
         SSX, SSY = s2ssMatrix @ np.array([groupStageX[i] - groupStageX[0], groupStageY[i] - groupStageY[0]])
         if SSX > 15 or SSY > 15:
             sem.Echo("WARNING: Point " + str(i + 1) + " requires image shifts (" + str(round(SSX, 1)) + "|" + str(round(SSY, 1)) + ") beyond the default image shift limit (15)!")
-        targets.append({"tgtfile": userName + "_tgt_" + str(i + 1).zfill(3) + ".mrc", "tsfile": userName + "_ts_" + str(i + 1).zfill(3) + ".mrc", "viewfile": userName + "_tgt_" + str(i + 1).zfill(3) + "_view.mrc", "SSX": SSX, "SSY": SSY, "stageX": groupStageX[i], "stageY": groupStageY[i], "skip": "False"})
+        tgt_params = {"tsfile": userName + "_ts_" + str(i + 1).zfill(3) + ".mrc", 
+                    "viewfile": userName + "_tgt_" + str(i + 1).zfill(3) + "_view.mrc", 
+                    "SSX": SSX, 
+                    "SSY": SSY, 
+                    "stageX": groupStageX[i], 
+                    "stageY": groupStageY[i], 
+                    "skip": "False"}
     else:       # leave out SS coords and calculate from stage coords on the fly in PACEtomo.py
-        targets.append({"tgtfile": userName + "_tgt_" + str(i + 1).zfill(3) + ".mrc", "tsfile": userName + "_ts_" + str(i + 1).zfill(3) + ".mrc", "viewfile": userName + "_tgt_" + str(i + 1).zfill(3) + "_view.mrc", "stageX": groupStageX[i], "stageY": groupStageY[i], "skip": "False"})
+        tgt_params = {"tsfile": userName + "_ts_" + str(i + 1).zfill(3) + ".mrc", 
+                    "viewfile": userName + "_tgt_" + str(i + 1).zfill(3) + "_view.mrc", 
+                    "stageX": groupStageX[i], 
+                    "stageY": groupStageY[i], 
+                    "skip": "False"}
+    if not onlyView:
+        tgt_params["tgtfile"] = userName + "_tgt_" + str(i + 1).zfill(3) + ".mrc"
+    targets.append(tgt_params)
 
 # Load nav file
 
@@ -317,17 +346,20 @@ sem.SaveNavigator()
 navFile = sem.ReportNavFile()
 navHeader, navItems = ParseNav(navFile)
 
-templatePrev = copy.deepcopy(navItems[prevID - 1])
+if not onlyView:
+    templatePrev = copy.deepcopy(navItems[prevID - 1])
+    templatePrev.pop("RawStageXY", None)
+    templatePrev.pop("SamePosId", None)
+
 templateView = copy.deepcopy(navItems[viewID - 1])
-templatePrev.pop("RawStageXY")
-templatePrev.pop("SamePosId")
-templateView.pop("RawStageXY")
-templateView.pop("SamePosId")
+templateView.pop("RawStageXY", None)
+templateView.pop("SamePosId", None)
 
 # Determine image dimenstions for polygons
 
-ptsDX_rec = np.array(np.array(templatePrev["PtsX"], dtype=float) - float(templatePrev["StageXYZ"][0]))
-ptsDY_rec = np.array(np.array(templatePrev["PtsY"], dtype=float) - float(templatePrev["StageXYZ"][1]))
+if not onlyView:
+    ptsDX_rec = np.array(np.array(templatePrev["PtsX"], dtype=float) - float(templatePrev["StageXYZ"][0]))
+    ptsDY_rec = np.array(np.array(templatePrev["PtsY"], dtype=float) - float(templatePrev["StageXYZ"][1]))
 ptsDX_view = np.array(np.array(templateView["PtsX"], dtype=float) - float(templateView["StageXYZ"][0]))
 ptsDY_view = np.array(np.array(templateView["PtsY"], dtype=float) - float(templateView["StageXYZ"][1]))
 
@@ -335,16 +367,15 @@ ptsDY_view = np.array(np.array(templateView["PtsY"], dtype=float) - float(templa
 
 newNavIDs = []
 for i, tgt in enumerate(targets):
-    tgtItem = copy.deepcopy(templatePrev)
-
+    
     # Create view map first to get mapID
     viewItem = copy.deepcopy(templateView)
     viewItem["Item"] = "v" + str(i + 1).zfill(2)
     viewItem["StageXYZ"] = [tgt["stageX"], tgt["stageY"], stageZ]
     viewItem["PtsX"] = ptsDX_view + tgt["stageX"]
     viewItem["PtsY"] = ptsDY_view + tgt["stageY"]
-    viewItem["MapFile"] = [os.path.join(curDir, os.path.splitext(tgt["tgtfile"])[0] + "_view.mrc")]
-    viewItem["Note"] = [os.path.splitext(tgt["tgtfile"])[0] + "_view.mrc"]
+    viewItem["MapFile"] = [os.path.join(curDir, tgt["viewfile"])]
+    viewItem["Note"] = [tgt["viewfile"]]
     viewItem["MapBinning"] = [out_bin_view * binFactor]
     viewItem["MapMinMaxScale"] = [np.min(viewImageProc), np.max(viewImageProc)]
 
@@ -360,33 +391,43 @@ for i, tgt in enumerate(targets):
     viewItem["RealignedID"] = [drawnID]
     viewItem["SamePosId"] = [newViewID]
 
-    # Create target map
-    tgtItem["Item"] = str(i + 1).zfill(3)
-    tgtItem["StageXYZ"] = [tgt["stageX"], tgt["stageY"], stageZ]
-    tgtItem["PtsX"] = ptsDX_rec + tgt["stageX"]
-    tgtItem["PtsY"] = ptsDY_rec + tgt["stageY"]
-    tgtItem["MapFile"] = [os.path.join(curDir, tgt["tgtfile"])]
-    tgtItem["MapBinning"] = [out_bin_rec * binFactor]
-    tgtItem["MapMinMaxScale"] = [np.min(tgtImages[i]), np.max(tgtImages[i])]
+    if not onlyView:
+        # Create target map
+        tgtItem = copy.deepcopy(templatePrev)
+        tgtItem["Item"] = str(i + 1).zfill(3)
+        tgtItem["StageXYZ"] = [tgt["stageX"], tgt["stageY"], stageZ]
+        tgtItem["PtsX"] = ptsDX_rec + tgt["stageX"]
+        tgtItem["PtsY"] = ptsDY_rec + tgt["stageY"]
+        tgtItem["MapFile"] = [os.path.join(curDir, tgt["tgtfile"])]
+        tgtItem["MapBinning"] = [out_bin_rec * binFactor]
+        tgtItem["MapMinMaxScale"] = [np.min(tgtImages[i]), np.max(tgtImages[i])]
 
-    # Create new map ID
-    uniqueID = int(sem.GetUniqueNavID())
-    while uniqueID in newNavIDs:
+        # Create new map ID
         uniqueID = int(sem.GetUniqueNavID())
-    newNavIDs.append(uniqueID)
+        while uniqueID in newNavIDs:
+            uniqueID = int(sem.GetUniqueNavID())
+        newNavIDs.append(uniqueID)
 
-    tgtItem["MapID"] = [uniqueID]
-    tgtItem["RealignedID"] = [drawnID]
-    tgtItem["SamePosId"] = [newViewID]
+        tgtItem["MapID"] = [uniqueID]
+        tgtItem["RealignedID"] = [drawnID]
+        tgtItem["SamePosId"] = [newViewID]
 
-    if i == 0:
-        tgtItem["Note"] = [userName + "_tgts.txt"]
-        tgtItem["Acquire"] = [1]
+        if i == 0:
+            tgtItem["Note"] = [userName + "_tgts.txt"]
+            tgtItem["Acquire"] = [1]
+        else:
+            tgtItem["Note"] = [tgt["tgtfile"]]
+            tgtItem["Acquire"] = [0]
+
+        navItems.append(tgtItem)
     else:
-        tgtItem["Note"] = [tgt["tgtfile"]]
-        tgtItem["Acquire"] = [0]
+        if i == 0:
+            viewItem["Note"] = [userName + "_tgts.txt"]
+            viewItem["Acquire"] = [1]
+        else:
+            viewItem["Note"] = [tgt["viewfile"]]
+            viewItem["Acquire"] = [0]
 
-    navItems.append(tgtItem)
     navItems.append(viewItem)
 
 # Write nav file

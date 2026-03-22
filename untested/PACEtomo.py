@@ -6,8 +6,10 @@
 #               More information at http://github.com/eisfabian/PACEtomo
 # Author:       Fabian Eisenstein
 # Created:      2021/04/16
-# Revision:     v1.9.2e
-# Last Change:  2025/12/08: added Trial LD area for tracking TS as an option, added non-square option for target montage
+# Revision:     v1.9.2f
+# Last Change:  2026/03/22: added _0_0 suffix to central montage piece
+#               2026/01/31: fixed tilt axis offset application in realignTo function 
+#               2025/12/08: added Trial LD area for tracking TS as an option, added non-square option for target montage
 #               2025/10/18: fixed crash when using both trackExpTime and zeroExpTime
 #               2025/06/04: fixes after LD area Krios3 test
 #               2025/04/30: added external sortByTilt
@@ -414,9 +416,9 @@ def sortTS(ts_name):
         log(f"Sorting {ts_name} by tilt angle in background using SPACEtomo...")
         DETACHED_PROCESS = 0x00000008 # From here: https://stackoverflow.com/questions/89228/calling-an-external-command-in-python#2251026
         try:
-            subprocess.Popen([sys.executable, cli, "sort", Path(curDir) / f"{ts_name}"], creationflags=DETACHED_PROCESS)
+            subprocess.Popen([sys.executable, cli, "sort", str(Path(curDir) / f"{ts_name}")], creationflags=DETACHED_PROCESS)
         except ValueError:      # Creationflags only supported on Windows
-            subprocess.Popen([sys.executable, cli, "sort", Path(curDir) / f"{ts_name}"])
+            subprocess.Popen([sys.executable, cli, "sort", str(Path(curDir) / f"{ts_name}")])
         return
     log(f"NOTE: Consider installing or updating SPACEtomo to sort tilt series in background!")
 
@@ -523,9 +525,11 @@ def alignTo(buffer, debug=False):
 def realignTo(nav_id=None, target=None):
     if target is not None and not realignToItem:
         # Move stage to target position
-        sem.MoveStageTo(float(target["stageX"]), float(target["stageY"]))
+        tilt_axis_offset = [float(offset) for offset in sem.ReportTiltAxisOffset()[1:3]]
+        sem.MoveStageTo(float(target["stageX"]) + tilt_axis_offset[0], float(target["stageY"]) + tilt_axis_offset[1])
         if "viewfile" in target.keys():
             sem.ReadOtherFile(0, "O", target["viewfile"]) # reads view file for first AlignTo instead
+            low_dose_area = sem.ImageProperties("O")[5]
             sem.V()
             alignTo("O", debug)
             ASX, ASY = sem.ReportAlignShift()[4:6]
@@ -678,7 +682,8 @@ def Tilt(tilt):
 
     if recover:
         # preview align to last tracking TS
-        openOldFile(targets[0]["tsfile"])
+        mainTSFile = os.path.splitext(targets[0]["tsfile"])[0] + "_0_0.mrc" if tgtMontage else targets[0]["tsfile"]
+        openOldFile(mainTSFile)
         sem.ReadFile(position[0][pn]["sec"], "O")                                               # read last image of position for AlignTo
         sem.SetDefocus(position[0][pn]["focus"])
         sem.SetImageShift(position[0][pn]["ISXset"], position[0][pn]["ISYset"])
@@ -709,17 +714,18 @@ def Tilt(tilt):
         if pos != 0 and position[pos][pn]["skip"]: 
             log(f"[{pos + 1}] was skipped on this branch.")
             continue
+        mainTSFile = os.path.splitext(targets[pos]["tsfile"])[0] + "_0_0.mrc" if tgtMontage else targets[pos]["tsfile"]
         if tilt != startTilt:
-            openOldFile(targets[pos]["tsfile"])
+            openOldFile(mainTSFile)
             sem.ReadFile(position[pos][pn]["sec"], "O")                                         # read last image of position for AlignTo
         else:
-            if os.path.exists(os.path.join(curDir, targets[pos]["tsfile"])):
+            if os.path.exists(os.path.join(curDir, mainTSFile)):
                 # Close all files incase file to be renamed is currently open
                 while sem.ReportFileNumber() > 0:
                     sem.CloseFile()
-                os.replace(os.path.join(curDir, targets[pos]["tsfile"]), os.path.join(curDir, targets[pos]["tsfile"]) + "~")
+                os.replace(os.path.join(curDir, mainTSFile), os.path.join(curDir, mainTSFile) + "~")
                 log("WARNING: Tilt series file already exists. Existing file was renamed.")
-            sem.OpenNewFile(targets[pos]["tsfile"])
+            sem.OpenNewFile(mainTSFile)
             if not tgtPattern and "tgtfile" in targets[pos].keys():
                 if refFromPreview:
                     temp_ref = os.path.splitext(targets[pos]["tgtfile"])[0] + "_tempref.mrc"

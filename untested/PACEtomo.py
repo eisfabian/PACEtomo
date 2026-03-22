@@ -512,7 +512,13 @@ def checkFrames(ts_name):
     return False
 
 def alignTo(buffer, debug=False):
-    sem.AlignTo(buffer, 0, 0, 0, int(debug))
+    # Check if the low dose area is consistent between reference and current buffer, if not use align between mags
+    ldA = sem.ImageProperties("A")[5]
+    ldRef = sem.ImageProperties(buffer)[5]
+    if ldA != ldRef:
+        sem.AlignBetweenMags(buffer, 0, int(debug))
+    else:
+        sem.AlignTo(buffer, 0, 0, 0, int(debug))
     if debug:
         try:
             sem.AddBufToStackWindow("A", 0, 0, 0, 0, "CC") #M #S [#B] [#O] [title]
@@ -520,7 +526,10 @@ def alignTo(buffer, debug=False):
             # Show CC briefly, then switch back to aligned buffer for buffer shift
             sem.Delay(1, "s")
         sem.Copy("B", "A")
-        sem.AlignTo(buffer)
+        if ldA != ldRef:
+            sem.AlignBetweenMags(buffer)
+        else:
+            sem.AlignTo(buffer)
 
 def realignTo(nav_id=None, target=None):
     if target is not None and not realignToItem:

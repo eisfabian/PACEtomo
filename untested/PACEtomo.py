@@ -516,7 +516,7 @@ def alignTo(buffer, debug=False):
     ldA = sem.ImageProperties("A")[5]
     ldRef = sem.ImageProperties(buffer)[5]
     if ldA != ldRef:
-        sem.AlignBetweenMags(buffer, 0, int(debug))
+        sem.AlignBetweenMags(buffer, -1, -1, -1)
     else:
         sem.AlignTo(buffer, 0, 0, 0, int(debug))
     if debug:
@@ -527,7 +527,7 @@ def alignTo(buffer, debug=False):
             sem.Delay(1, "s")
         sem.Copy("B", "A")
         if ldA != ldRef:
-            sem.AlignBetweenMags(buffer)
+            sem.AlignBetweenMags(buffer, -1, -1, -1)
         else:
             sem.AlignTo(buffer)
 

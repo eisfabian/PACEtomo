@@ -751,7 +751,7 @@ def Tilt(tilt):
         checkValves()
         sem.SetFrameNameFormat(0, 0, 0x40)                                                      # turn off Sequential number
         sem.SetFrameNameFormat(0, 1, 0x400)                                                     # turn on tilt angle
-        sem.SetFrameBaseName(0, 1, 0, os.path.splitext(targets[pos]["tsfile"])[0])              # change frame name in accordance with tilt series
+        sem.SetFrameBaseName(0, 1, 0, os.path.splitext(targets[pos]["tsfile"])[0] + f"_tilt_{str(tiltStepCounter).zfill(3)}_angle")  # include collection order and tilt angle in frame name
         if beamTiltComp: 
             sem.AdjustBeamTiltforIS()
         sem.Delay(delayIS, "s")
@@ -1477,6 +1477,7 @@ if not recover:
     geo = [[], [], []]
 
     plustilt = minustilt = startTilt
+    tiltStepCounter = 1
     Tilt(startTilt)
 
     if refineGeo:
@@ -1589,6 +1590,7 @@ else:
         resumePN = 1
 
     posResumed = resume["pos"] + 1
+    tiltStepCounter = resume["sec"]
 
     dewarFillTime = 0
     maxProgress = ((maxTilt - minTilt) / step + 1) * (len(position) - skippedTgts)
@@ -1621,14 +1623,16 @@ for i in range(startstep, int(np.ceil(branchsteps))):
     for j in range(substep[0], groupSize):
         plustilt += step
         if all([pos[1]["skip"] for pos in position]): continue
-        log(f"\nTilt step {i * 2 * groupSize + j + 1 + 1} out of {int((maxTilt - minTilt) / step + 1)} ({plustilt} deg)...", style=1)
-        sem.SetStatusLine(1, f"Tilt step: {i * 2 * groupSize + j + 1 + 1} / {int((maxTilt - minTilt) / step + 1)}")
+        tiltStepCounter += 1
+        log(f"\nTilt step {tiltStepCounter} out of {int((maxTilt - minTilt) / step + 1)} ({plustilt} deg)...", style=1)
+        sem.SetStatusLine(1, f"Tilt step: {tiltStepCounter} / {int((maxTilt - minTilt) / step + 1)}")
         Tilt(plustilt)
     for j in range(substep[1], groupSize):
         minustilt -= step
         if all([pos[2]["skip"] for pos in position]): continue
-        log(f"\nTilt step {i * 2 * groupSize + j + groupSize + 1 + 1} out of {int((maxTilt - minTilt) / step + 1)} ({minustilt} deg)...", style=1)
-        sem.SetStatusLine(1, f"Tilt step: {i * 2 * groupSize + j + groupSize + 1 + 1} / {int((maxTilt - minTilt) / step + 1)}")
+        tiltStepCounter += 1
+        log(f"\nTilt step {tiltStepCounter} out of {int((maxTilt - minTilt) / step + 1)} ({minustilt} deg)...", style=1)
+        sem.SetStatusLine(1, f"Tilt step: {tiltStepCounter} / {int((maxTilt - minTilt) / step + 1)}")
         Tilt(minustilt)
     substep = [0, 0]                                                                            # reset sub steps after recovery
     if coldFEG: checkColdFEG()                                                                  # check for flashing at the end of each step

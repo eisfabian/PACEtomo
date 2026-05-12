@@ -857,8 +857,8 @@ def Tilt(tilt):
         # Collect surrounding tiles for montage tilt series
         if tgtMontage and (tgtTrackMnt or pos != 0):
             sem.ImageShiftByUnits(-bufISX - position[pos][pn]["ISXali"], -bufISY - position[pos][pn]["ISYali"]) # reset shifts to already taken center image
-            for i in range(-tgtMntSize[0] // 2, tgtMntSize[0] // 2 + 1):
-                for j in range(-tgtMntSize[1] // 2, tgtMntSize[1] // 2 + 1):
+            for i in range(-(tgtMntSize[0] // 2), tgtMntSize[0] // 2 + 1):
+                for j in range(-(tgtMntSize[1] // 2), tgtMntSize[1] // 2 + 1):
                     if i == j == 0: continue
                     if tilt != startTilt:
                         openOldFile(os.path.splitext(targets[pos]["tsfile"])[0] + "_" + str(i) + "_" + str(j) + ".mrc")

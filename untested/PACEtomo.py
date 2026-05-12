@@ -6,8 +6,9 @@
 #               More information at http://github.com/eisfabian/PACEtomo
 # Author:       Fabian Eisenstein
 # Created:      2021/04/16
-# Revision:     v1.9.2f
-# Last Change:  2026/03/22: added _0_0 suffix to central montage piece
+# Revision:     v1.9.2g
+# Last Change:  2026/05/13: added check for pixel sizes befor calling AlignBetweenMAgs
+#               2026/03/22: added _0_0 suffix to central montage piece
 #               2026/01/31: fixed tilt axis offset application in realignTo function 
 #               2025/12/08: added Trial LD area for tracking TS as an option, added non-square option for target montage
 #               2025/10/18: fixed crash when using both trackExpTime and zeroExpTime
@@ -101,7 +102,7 @@ breakpoints     = False     # Waits at every debug output for user to press B ke
 
 ########## END SETTINGS ########## 
 
-versionPACE = "1.9.2c"
+versionPACE = "1.9.2g"
 
 import serialem as sem
 import os
@@ -512,10 +513,14 @@ def checkFrames(ts_name):
     return False
 
 def alignTo(buffer, debug=False):
-    # Check if the low dose area is consistent between reference and current buffer, if not use align between mags
-    ldA = sem.ImageProperties("A")[5]
-    ldRef = sem.ImageProperties(buffer)[5]
-    if ldA != ldRef:
+    # Use AlignBetweenMags only if the low dose area AND the pixel size differ between buffers;
+    # otherwise AlignBetweenMags errors out when both images share the same mag
+    propsA = sem.ImageProperties("A")
+    propsRef = sem.ImageProperties(buffer)
+    ldA, ldRef = propsA[5], propsRef[5]
+    pxA, pxRef = propsA[4], propsRef[4]
+    betweenMags = ldA != ldRef and pxA != pxRef
+    if betweenMags:
         sem.AlignBetweenMags(buffer, -1, -1, -1)
     else:
         sem.AlignTo(buffer, 0, 0, 0, int(debug))
@@ -526,7 +531,7 @@ def alignTo(buffer, debug=False):
             # Show CC briefly, then switch back to aligned buffer for buffer shift
             sem.Delay(1, "s")
         sem.Copy("B", "A")
-        if ldA != ldRef:
+        if betweenMags:
             sem.AlignBetweenMags(buffer, -1, -1, -1)
         else:
             sem.AlignTo(buffer)

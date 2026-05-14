@@ -513,17 +513,25 @@ def checkFrames(ts_name):
     return False
 
 def alignTo(buffer, debug=False):
-    # Use AlignBetweenMags only if the low dose area AND the pixel size differ between buffers;
-    # otherwise AlignBetweenMags errors out when both images share the same mag
-    propsA = sem.ImageProperties("A")
-    propsRef = sem.ImageProperties(buffer)
-    ldA, ldRef = propsA[5], propsRef[5]
-    pxA, pxRef = propsA[4], propsRef[4]
-    betweenMags = ldA != ldRef and pxA != pxRef
-    if betweenMags:
-        sem.AlignBetweenMags(buffer, -1, -1, -1)
-    else:
-        sem.AlignTo(buffer, 0, 0, 0, int(debug))
+    # Use AlignBetweenMags only when the buffers are from different magnifications (>10% difference in pixel size).
+    # Fall back to AlignTo.
+    pxA = sem.ImageProperties("A")[4]
+    pxRef = sem.ImageProperties(buffer)[4]
+    betweenMags = pxA > 0 and pxRef > 0 and abs(pxA - pxRef) / max(pxA, pxRef) > 0.1
+
+    def _runAlign(plainArgs):
+        if betweenMags:
+            try:
+                sem.NoMessageBoxOnError(1)
+                sem.AlignBetweenMags(buffer, -1, -1, -1)
+                return
+            except sem.SEMerror as e:
+                log(f"WARNING: AlignBetweenMags failed ({e}). Falling back to AlignTo.")
+            finally:
+                sem.NoMessageBoxOnError(0)
+        sem.AlignTo(buffer, *plainArgs)
+
+    _runAlign([0, 0, 0, int(debug)])
     if debug:
         try:
             sem.AddBufToStackWindow("A", 0, 0, 0, 0, "CC") #M #S [#B] [#O] [title]
@@ -531,10 +539,7 @@ def alignTo(buffer, debug=False):
             # Show CC briefly, then switch back to aligned buffer for buffer shift
             sem.Delay(1, "s")
         sem.Copy("B", "A")
-        if betweenMags:
-            sem.AlignBetweenMags(buffer, -1, -1, -1)
-        else:
-            sem.AlignTo(buffer)
+        _runAlign([])
 
 def realignTo(nav_id=None, target=None):
     if target is not None and not realignToItem:
@@ -565,7 +570,14 @@ def realignTo(nav_id=None, target=None):
             if defocus_offset != 0:
                 sem.ChangeFocus(defocus_offset) # Higher defocus for better correlation, but max at 10 to avoid major distortions
             sem.L()
-            sem.AlignBetweenMags("O", -1, -1, -1)
+            try:
+                sem.NoMessageBoxOnError(1)
+                sem.AlignBetweenMags("O", -1, -1, -1)
+            except sem.SEMerror as e:
+                log(f"WARNING: AlignBetweenMags (Preview to View) failed ({e}). Falling back to AlignTo.")
+                sem.AlignTo("O")
+            finally:
+                sem.NoMessageBoxOnError(0)
             AISX, AISY, ASX, ASY = sem.ReportAlignShift()[2:6]
             if defocus_offset != 0:
                 sem.ChangeFocus(-defocus_offset) # Reset focus

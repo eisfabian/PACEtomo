@@ -5,8 +5,9 @@
 #               More information at http://github.com/eisfabian/PACEtomo
 # Author:       Fabian Eisenstein
 # Created:      2022/05/10
-# Revision:     v1.8
-# Last Change:  2024/05/10: forced "Center Shift on Tilt axis" (1.8)
+# Revision:     v1.9
+# Last Change:  2026/08/23: fixed compatability issue with latest numpy
+#               2024/05/10: forced "Center Shift on Tilt axis" (1.8)
 # ===================================================================
 
 ############ SETTINGS ############ 
@@ -95,9 +96,12 @@ y0 = np.zeros(len(offsets))
 y0_neg = np.zeros(len(offsets))
 y0_pos = np.zeros(len(offsets))
 for j in range(len(offsets)):
-    y0[j], cov = optimize.curve_fit(dZ, angles, relFocus[j], p0=0)
-    y0_neg[j], cov = optimize.curve_fit(dZ, [angle for angle in angles if angle <= 0], relFocus[j][:len([angle for angle in angles if angle <= 0])], p0=0)
-    y0_pos[j], cov = optimize.curve_fit(dZ, [angle for angle in angles if angle >= 0], relFocus[j][len([angle for angle in angles if angle < 0]):], p0=0)
+    popt, cov = optimize.curve_fit(dZ, angles, relFocus[j], p0=0)
+    y0[j] = popt[0]
+    popt, cov = optimize.curve_fit(dZ, [angle for angle in angles if angle <= 0], relFocus[j][:len([angle for angle in angles if angle <= 0])], p0=0)
+    y0_neg[j] = popt[0]
+    popt, cov = optimize.curve_fit(dZ, [angle for angle in angles if angle >= 0], relFocus[j][len([angle for angle in angles if angle < 0]):], p0=0)
+    y0_pos[j] = popt[0]
 
 sem.Echo("Remaining tilt axis offsets:")
 for i in range(0, len(offsets)):

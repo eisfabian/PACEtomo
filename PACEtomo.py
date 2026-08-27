@@ -6,8 +6,15 @@
 #               More information at http://github.com/eisfabian/PACEtomo
 # Author:       Fabian Eisenstein
 # Created:      2021/04/16
-# Revision:     v1.9.2c
-# Last Change:  2025/04/30: added external sortByTilt
+# Revision:     v1.9.3
+# Last Change:  2026/08/27: v1.9.3 release
+#               2026/05/13: added check for pixel sizes befor calling AlignBetweenMAgs
+#               2026/03/22: added _0_0 suffix to central montage piece
+#               2026/01/31: fixed tilt axis offset application in realignTo function 
+#               2025/12/08: added Trial LD area for tracking TS as an option, added non-square option for target montage
+#               2025/10/18: fixed crash when using both trackExpTime and zeroExpTime
+#               2025/06/04: fixes after LD area Krios3 test
+#               2025/04/30: added external sortByTilt
 # ===================================================================
 
 ############ SETTINGS ############ 
@@ -32,6 +39,7 @@ trackExpTime    = 0         # set to exposure time [s] used for tracking tilt se
 trackDefocus    = 0         # set to defocus [microns] used for tracking tilt series, if 0: use same defocus range for all tilt series
 trackMag        = 0         # set to nominal magnification for tracking tilt series (make sure detector is still covered under the same beam conditions), if 0: use same mag for all tilt series
 trackTwice      = False     # track in 2 steps, useful when large tracking shifts cause inaccuracies in alignment and hence, in residual errors for all targets, but causes double exposure of tracking area
+trackUseTrial   = False     # Use Trial Low Dose Area for the tracking tilt series (not recommended unless you need to change the illuminated area)
 
 # Geometry settings
 pretilt         = 0         # pretilt [degrees] of sample in deg e.g. after FIB milling (if milling direction is not perpendicular to the tilt axis, estimate and add rotation)
@@ -84,7 +92,7 @@ tiltTargets     = 0         # Stage tilt at which targets were selected (if not 
 
 # Target montage settings
 tgtMontage      = False     # collect montage for each target using the shorter camera dimension (e.g. for square aperture montage tomography)
-tgtMntSize      = 1         # size of montage pattern (1: 3x3, 2: 5x5, 3: 7x7, ...)
+tgtMntSize      = [1, 1]    # size of montage pattern, has to be odd numbers (e.g.: [3, 3], [3, 5], [9, 7], ...)
 tgtMntOverlap   = 0.05      # montage tile overlap as fraction of shorter camera dimension
 tgtMntXOffset   = 0         # max offset [microns] applied along tilt axis throughout tilt series (+tgtMntXOffset is reached at maxTilt, -tgtMntXOffset at minTilt)
 tgtMntFocusCor  = False     # do focus compensation for tiles of montage
@@ -95,7 +103,7 @@ breakpoints     = False     # Waits at every debug output for user to press B ke
 
 ########## END SETTINGS ########## 
 
-versionPACE = "1.9.2c"
+versionPACE = "1.9.3"
 
 import serialem as sem
 import os
@@ -180,7 +188,7 @@ def retryOpen(max_attempts=5, delay=5):
             while attempts < max_attempts:
                 try:
                     return func(*args, **kwargs)
-                except PermissionError as e:
+                except (PermissionError, sem.SEMerror) as e:
                     attempts += 1
                     if attempts == max_attempts:
                         raise e
@@ -285,6 +293,10 @@ def updateTargets(fileName, targets, position=[], sec=0, pos=0):
         output += "\n"
     with open(fileName, "w") as f:
         f.write(output)
+
+@retryOpen()
+def writeAutodoc():
+    sem.WriteAutodoc()
 
 def geoPlane(x, a, b):
     return a * x[0] + b * x[1]
@@ -406,9 +418,9 @@ def sortTS(ts_name):
         log(f"Sorting {ts_name} by tilt angle in background using SPACEtomo...")
         DETACHED_PROCESS = 0x00000008 # From here: https://stackoverflow.com/questions/89228/calling-an-external-command-in-python#2251026
         try:
-            subprocess.Popen([sys.executable, cli, "sort", Path(curDir) / f"{ts_name}"], creationflags=DETACHED_PROCESS)
+            subprocess.Popen([sys.executable, cli, "sort", str(Path(curDir) / f"{ts_name}")], creationflags=DETACHED_PROCESS)
         except ValueError:      # Creationflags only supported on Windows
-            subprocess.Popen([sys.executable, cli, "sort", Path(curDir) / f"{ts_name}"])
+            subprocess.Popen([sys.executable, cli, "sort", str(Path(curDir) / f"{ts_name}")])
         return
     log(f"NOTE: Consider installing or updating SPACEtomo to sort tilt series in background!")
 
@@ -491,15 +503,36 @@ def checkFrames(ts_name):
     # Check if frame saving is available by checking if warning was accepted by user at start of script
     if sem.IsVariableDefined("warningFramePath") == 0:
         # Make sure frames were saved
-        frame_file, frame_dir, frame_name = sem.ReportLastFrameFile()
-        if checkFrames and len(glob.glob(os.path.join(frame_dir, os.path.splitext(ts_name)[0] + "*"))) > 0:
-            return True
+        try:
+            frame_file, frame_dir, frame_name = sem.ReportLastFrameFile()
+            if len(glob.glob(os.path.join(frame_dir, os.path.splitext(ts_name)[0] + "*"))) > 0:
+                return True
+        except sem.SEMerror:
+            log(f"DEBUG: No last frame file found. Assuming no frames were saved.")
 
     log(f"WARNING: Frames for {ts_name} could not be found. Keeping tilt stack unprocessed.")
     return False
 
 def alignTo(buffer, debug=False):
-    sem.AlignTo(buffer, 0, 0, 0, int(debug))
+    # Use AlignBetweenMags only when the buffers are from different magnifications (>10% difference in pixel size).
+    # Fall back to AlignTo.
+    pxA = sem.ImageProperties("A")[4]
+    pxRef = sem.ImageProperties(buffer)[4]
+    betweenMags = pxA > 0 and pxRef > 0 and abs(pxA - pxRef) / max(pxA, pxRef) > 0.1
+
+    def _runAlign(plainArgs):
+        if betweenMags:
+            try:
+                sem.NoMessageBoxOnError(1)
+                sem.AlignBetweenMags(buffer, -1, -1, -1)
+                return
+            except sem.SEMerror as e:
+                log(f"WARNING: AlignBetweenMags failed ({e}). Falling back to AlignTo.")
+            finally:
+                sem.NoMessageBoxOnError(0)
+        sem.AlignTo(buffer, *plainArgs)
+
+    _runAlign([0, 0, 0, int(debug)])
     if debug:
         try:
             sem.AddBufToStackWindow("A", 0, 0, 0, 0, "CC") #M #S [#B] [#O] [title]
@@ -507,14 +540,16 @@ def alignTo(buffer, debug=False):
             # Show CC briefly, then switch back to aligned buffer for buffer shift
             sem.Delay(1, "s")
         sem.Copy("B", "A")
-        sem.AlignTo(buffer)
+        _runAlign([])
 
 def realignTo(nav_id=None, target=None):
     if target is not None and not realignToItem:
         # Move stage to target position
-        sem.MoveStageTo(float(target["stageX"]), float(target["stageY"]))
+        tilt_axis_offset = [float(offset) for offset in sem.ReportTiltAxisOffset()[1:3]]
+        sem.MoveStageTo(float(target["stageX"]) + tilt_axis_offset[0], float(target["stageY"]) + tilt_axis_offset[1])
         if "viewfile" in target.keys():
             sem.ReadOtherFile(0, "O", target["viewfile"]) # reads view file for first AlignTo instead
+            low_dose_area = sem.ImageProperties("O")[5]
             sem.V()
             alignTo("O", debug)
             ASX, ASY = sem.ReportAlignShift()[4:6]
@@ -536,7 +571,14 @@ def realignTo(nav_id=None, target=None):
             if defocus_offset != 0:
                 sem.ChangeFocus(defocus_offset) # Higher defocus for better correlation, but max at 10 to avoid major distortions
             sem.L()
-            sem.AlignBetweenMags("O", -1, -1, -1)
+            try:
+                sem.NoMessageBoxOnError(1)
+                sem.AlignBetweenMags("O", -1, -1, -1)
+            except sem.SEMerror as e:
+                log(f"WARNING: AlignBetweenMags (Preview to View) failed ({e}). Falling back to AlignTo.")
+                sem.AlignTo("O")
+            finally:
+                sem.NoMessageBoxOnError(0)
             AISX, AISY, ASX, ASY = sem.ReportAlignShift()[2:6]
             if defocus_offset != 0:
                 sem.ChangeFocus(-defocus_offset) # Reset focus
@@ -587,17 +629,21 @@ def Tilt(tilt):
 
     def setTrack():
         global trackMag, origMag
+        if trackUseTrial:
+            ld_area = "T"
+        else:
+            ld_area = "R"
         if trackDefocus < maxDefocus:
             sem.SetDefocus(position[0][pn]["focus"] + trackDefocus - targetDefocus)
         if trackExpTime > 0:
             if tilt == startTilt:
-                sem.SetExposure("R", max(trackExpTime, zeroExpTime))
+                sem.SetExposure(ld_area, max(trackExpTime, zeroExpTime))
             else:
-                sem.SetExposure("R", trackExpTime)
+                sem.SetExposure(ld_area, trackExpTime)
         if trackMag > 0:
             if tilt == startTilt:
                 origMag, *_ = sem.ReportMag()
-                sem.UpdateLowDoseParams("R")
+                sem.UpdateLowDoseParams(ld_area)
             attempt = 0
             while sem.ReportMag()[0] == origMag:                                                # has to be checked, because Rec is sometimes not updated (JEOL)
                 if attempt >= 10:
@@ -605,19 +651,25 @@ def Tilt(tilt):
                     trackMag = 0
                     break
                 sem.SetMag(trackMag)
-                sem.GoToLowDoseArea("R")
+                sem.GoToLowDoseArea(ld_area)
                 attempt += 1
             sem.SetImageShift(position[0][pn]["ISXset"], position[0][pn]["ISYset"])
             if not recover:
                 sem.ImageShiftByMicrons(0, SSchange)    
 
     def resetTrack():
+        if trackUseTrial:
+            ld_area = "T"
+        else:
+            ld_area = "R"
         if trackExpTime > 0:
-            sem.RestoreCameraSet("R")
+            sem.RestoreCameraSet(ld_area)
+            if zeroExpTime > 0 and tilt == startTilt:
+                sem.SetExposure(ld_area, zeroExpTime)
         if trackMag > 0:
             while sem.ReportMag()[0] != origMag:                                                # has to be checked, because Rec is sometimes not updated (JEOL)
                 sem.SetMag(origMag)
-                sem.GoToLowDoseArea("R")
+                sem.GoToLowDoseArea(ld_area)
 
     global recover
 
@@ -657,14 +709,18 @@ def Tilt(tilt):
 
     if recover:
         # preview align to last tracking TS
-        openOldFile(targets[0]["tsfile"])
+        mainTSFile = os.path.splitext(targets[0]["tsfile"])[0] + "_0_0.mrc" if tgtMontage else targets[0]["tsfile"]
+        openOldFile(mainTSFile)
         sem.ReadFile(position[0][pn]["sec"], "O")                                               # read last image of position for AlignTo
         sem.SetDefocus(position[0][pn]["focus"])
         sem.SetImageShift(position[0][pn]["ISXset"], position[0][pn]["ISYset"])
         SSchange = 0                                                                            # needs to be defined for setTrack
         setTrack()
         if checkDewar: checkFilling()
-        sem.L()
+        if trackUseTrial:
+            sem.T()
+        else:
+            sem.L()
         alignTo("O", debug)
         bufISX, bufISY = sem.ReportISforBufferShift()
         sem.ImageShiftByUnits(position[0][pn]["ISXali"], position[0][pn]["ISYali"])             # remove accumulated buffer shifts to calculate alignment to initial startTilt image
@@ -685,17 +741,18 @@ def Tilt(tilt):
         if pos != 0 and position[pos][pn]["skip"]: 
             log(f"[{pos + 1}] was skipped on this branch.")
             continue
+        mainTSFile = os.path.splitext(targets[pos]["tsfile"])[0] + "_0_0.mrc" if tgtMontage else targets[pos]["tsfile"]
         if tilt != startTilt:
-            openOldFile(targets[pos]["tsfile"])
+            openOldFile(mainTSFile)
             sem.ReadFile(position[pos][pn]["sec"], "O")                                         # read last image of position for AlignTo
         else:
-            if os.path.exists(os.path.join(curDir, targets[pos]["tsfile"])):
+            if os.path.exists(os.path.join(curDir, mainTSFile)):
                 # Close all files incase file to be renamed is currently open
                 while sem.ReportFileNumber() > 0:
                     sem.CloseFile()
-                os.replace(os.path.join(curDir, targets[pos]["tsfile"]), os.path.join(curDir, targets[pos]["tsfile"]) + "~")
+                os.replace(os.path.join(curDir, mainTSFile), os.path.join(curDir, mainTSFile) + "~")
                 log("WARNING: Tilt series file already exists. Existing file was renamed.")
-            sem.OpenNewFile(targets[pos]["tsfile"])
+            sem.OpenNewFile(mainTSFile)
             if not tgtPattern and "tgtfile" in targets[pos].keys():
                 if refFromPreview:
                     temp_ref = os.path.splitext(targets[pos]["tgtfile"])[0] + "_tempref.mrc"
@@ -705,6 +762,9 @@ def Tilt(tilt):
                 sem.ReadOtherFile(0, "O", targets[pos]["tgtfile"])                              # reads tgt file for first AlignTo instead
 
         sem.AreaForCumulRecordDose(pos + 1)                                                     # set area to accumulate record dose (counting from 1)
+
+        # Change to given low dose area
+        sem.GoToLowDoseArea(targets[pos]["LDArea"])
 
 ### Calculate and apply predicted shifts
         SSchange = 0                                                                            # only apply changes if not startTilt
@@ -743,6 +803,10 @@ def Tilt(tilt):
                 for i in range(0, len(position)):
                     position[i][pn]["focus"] -= focuserror
                 sem.SetDefocus(position[pos][pn]["focus"])
+                sem.GoToLowDoseArea(targets[pos]["LDArea"])
+
+            if trackUseTrial:
+                sem.GoToLowDoseArea("T")
 
             setTrack()
 
@@ -752,10 +816,20 @@ def Tilt(tilt):
         sem.SetFrameNameFormat(0, 0, 0x40)                                                      # turn off Sequential number
         sem.SetFrameNameFormat(0, 1, 0x400)                                                     # turn on tilt angle
         sem.SetFrameBaseName(0, 1, 0, os.path.splitext(targets[pos]["tsfile"])[0] + f"_tilt_{str(tiltStepCounter).zfill(3)}_angle")  # include collection order and tilt angle in frame name
+
         if beamTiltComp: 
             sem.AdjustBeamTiltforIS()
         sem.Delay(delayIS, "s")
-        sem.R()
+
+        # Record image or given low dose area image
+        if trackUseTrial and pos == 0:
+            sem.T()
+        elif targets[pos]["LDArea"] == "V":
+            sem.View()
+        elif targets[pos]["LDArea"] == "S":
+            sem.Search()
+        else:
+            sem.R()
         sem.S()
 
         bufISXpre = 0                                                                           # only non 0 if two tracking images are taken
@@ -768,7 +842,14 @@ def Tilt(tilt):
                 ASX, ASY = sem.ReportAlignShift()[4:6]
                 if abs(ASX) > alignLimit * 1000 or abs(ASY) > alignLimit * 1000:
                     bufISXpre, bufISYpre = sem.ReportISforBufferShift()                         # have to be added only to ISset but not ISali (since ali only considers the IS chain of ali images)
-                    sem.R()
+                    if trackUseTrial:
+                        sem.T()
+                    elif targets[pos]["LDArea"] == "V":
+                        sem.View()
+                    if targets[pos]["LDArea"] == "S":
+                        sem.Search()
+                    else:
+                        sem.R()
                     sem.S()
                     alignTo("O", debug)
 
@@ -789,8 +870,8 @@ def Tilt(tilt):
         # Collect surrounding tiles for montage tilt series
         if tgtMontage and (tgtTrackMnt or pos != 0):
             sem.ImageShiftByUnits(-bufISX - position[pos][pn]["ISXali"], -bufISY - position[pos][pn]["ISYali"]) # reset shifts to already taken center image
-            for i in range(-tgtMntSize, tgtMntSize + 1):
-                for j in range(-tgtMntSize, tgtMntSize + 1):
+            for i in range(-(tgtMntSize[0] // 2), tgtMntSize[0] // 2 + 1):
+                for j in range(-(tgtMntSize[1] // 2), tgtMntSize[1] // 2 + 1):
                     if i == j == 0: continue
                     if tilt != startTilt:
                         openOldFile(os.path.splitext(targets[pos]["tsfile"])[0] + "_" + str(i) + "_" + str(j) + ".mrc")
@@ -818,7 +899,14 @@ def Tilt(tilt):
                     if beamTiltComp: 
                         sem.AdjustBeamTiltforIS()
                     sem.Delay(delayIS, "s")
-                    sem.R()
+                    if trackUseTrial and pos == 0:
+                        sem.T()
+                    elif targets[pos]["LDArea"] == "V":
+                        sem.View()
+                    elif targets[pos]["LDArea"] == "S":
+                        sem.Search()
+                    else:
+                        sem.R()
                     sem.S()
 
                     mont_SSX, mont_SSY = sem.ReportSpecimenShift()
@@ -830,7 +918,7 @@ def Tilt(tilt):
                     # Add shift to all montage tilt series mdoc files for auto stitching
                     if extendedMdoc:
                         sem.AddToAutodoc("PixelShiftFromCenter", pixelShiftFromCenter)
-                        sem.WriteAutodoc()
+                        writeAutodoc()
 
                     sem.CloseFile()
 
@@ -943,7 +1031,7 @@ def Tilt(tilt):
                 sem.AddToAutodoc("CtfFind", str(cfind[0]))
             if doCtfPlotter:
                 sem.AddToAutodoc("Ctfplotter", str(cplot[0]))
-            sem.WriteAutodoc()
+            writeAutodoc()
 
         sem.CloseFile()
 
@@ -1077,6 +1165,10 @@ if (maxTilt - startTilt) % step != 0 or (startTilt - minTilt) % step != 0:
     maxTilt = round(int((maxTilt - startTilt) / step) * step + startTilt, 1)
     minTilt = round(int((minTilt - startTilt) / step) * step + startTilt, 1)
     print(f"WARNING: Tilt increment does not divide evenly into tilt range. Tilt range will be adjusted to: {minTilt}, {maxTilt}")
+if tgtMntSize[0] % 2 != 1 or tgtMntSize[1] % 2 != 1:
+    if tgtMntSize[0] % 2 != 1: tgtMntSize[0] += 1
+    if tgtMntSize[1] % 2 != 1: tgtMntSize[1] += 1
+    print(f"WARNING: Montage size must be odd to accommodate image on target center. Montage size will be adjusted to: {tgtMntSize}")
 
 ### Recovery data
 recoverInput = 0
@@ -1336,6 +1428,12 @@ if not recover:
     positionFocus = focus0                                                                      # set maxDefocus as focus0 and add focus steps in loop
     minFocus0 = focus0 - maxDefocus + minDefocus
 
+    # Get defocus offsets for LD Areas
+    focus_offset_LD = {}
+    focus_offset_LD["R"] = 0
+    focus_offset_LD["V"] = sem.ReportLDDefocusOffset("V")
+    focus_offset_LD["S"] = sem.ReportLDDefocusOffset("S")
+
     sem.GoToLowDoseArea("R")
     s2ssMatrix = np.array(sem.StageToSpecimenMatrix(0)).reshape((2, 2))
     is2ssMatrix = np.array(sem.ISToSpecimenMatrix(0)).reshape((2, 2))
@@ -1380,6 +1478,10 @@ if not recover:
             skippedTgts += 1
             continue
 
+        # Set default LDArea to Record
+        if "LDArea" not in tgt.keys():
+            tgt["LDArea"] = "R"
+
         if tiltTargets == 0:
             tiltScaling = np.cos(np.radians(pretilt * np.cos(np.radians(rotation)) + startTilt)) / np.cos(np.radians(pretilt * np.cos(np.radians(rotation)))) # stretch shifts from 0 tilt to startTilt
         else:
@@ -1403,31 +1505,36 @@ if not recover:
                     alignTo("O", debug)
                     ASX, ASY = sem.ReportAlignShift()[4:6]
                     log(f"Target alignment (View) error in X | Y: {round(ASX, 0)} nm | {round(ASY, 0)} nm")    
-                if "tgtfile" in tgt.keys() and previewAli:                
+                if "tgtfile" in tgt.keys() and previewAli and tgt["LDArea"] == "R":                
                     sem.ReadOtherFile(0, "O", tgt["tgtfile"])                                   # reads tgt file for first AlignTo instead
                     sem.L()
                     alignTo("O", debug)
                     AISX, AISY, ASX, ASY = sem.ReportAlignShift()[2:6]
                     log(f"Target alignment (Prev) error in X | Y: {round(ASX, 0)} nm | {round(ASY, 0)} nm")
-                elif "viewfile" in tgt.keys() and previewAli:
+                elif "viewfile" in tgt.keys() and previewAli and tgt["LDArea"] != "V":
                     # Use align between mags to align preview image to view image
                     if not viewAli:
-                        #sem.GoToLowDoseArea("V")                                                # If ReadOtherFile while in Record, pixel size of Record is used and AlignBetweenMags fails (seems to be fixed in 4.2beta from 14.08.2024)
+                        #sem.GoToLowDoseArea("V")                                               # If ReadOtherFile while in Record, pixel size of Record is used and AlignBetweenMags fails (seems to be fixed in 4.2beta from 14.08.2024)
                         sem.ReadOtherFile(0, "O", tgt["viewfile"])                              # reads view file for first AlignTo instead
                     else:
                         # If View image was already aligned, take new centered View image at startTilt and use as reference instead
                         sem.V()
                         sem.Copy("A", "O")
+                    
                     # Check defocus offset
-                    sem.GoToLowDoseArea("R")                                                    # Switch to R before applying defocus offset to not mess with potential mP/nP offsets between View and Rec
-                    defocus_offset = max(-10, sem.ReportLDDefocusOffset("V"))
-                    if defocus_offset != 0:
-                        sem.ChangeFocus(defocus_offset)                                             # Higher defocus for better correlation, but max at 10 to avoid major distortions
-                    sem.L()
+                    if tgt["LDArea"] == "R":
+                        sem.GoToLowDoseArea("R")                                                # Switch to R before applying defocus offset to not mess with potential mP/nP offsets between View and Rec
+                        defocus_offset = max(-10, sem.ReportLDDefocusOffset("V"))
+                        if defocus_offset != 0:
+                            sem.ChangeFocus(defocus_offset)                                     # Higher defocus for better correlation, but max at 10 to avoid major distortions
+                        sem.L()
+                    elif tgt["LDArea"] == "S":
+                        sem.Search()
                     sem.AlignBetweenMags("O", -1, -1, -1)
                     AISX, AISY, ASX, ASY = sem.ReportAlignShift()[2:6]
+                    defocus_offset = max(-10, sem.ReportLDDefocusOffset("V"))
                     if defocus_offset != 0:
-                        sem.ChangeFocus(-defocus_offset)                                            # Reset focus
+                        sem.ChangeFocus(-defocus_offset)                                        # Reset focus
                     log(f"Target alignment (Pv2V) error in X | Y: {round(ASX, 0)} nm | {round(ASY, 0)} nm")           
 
                 # Save preview image as new reference
@@ -1438,13 +1545,14 @@ if not recover:
                     position[-1][0]["ISXali"] = AISX                                            # Save shifts to real reference
                     position[-1][0]["ISYali"] = AISY 
 
-            sem.GoToLowDoseArea("R")
+            sem.GoToLowDoseArea(tgt["LDArea"])
         ISXset, ISYset, *_ = sem.ReportImageShift()
         SSX, SSY = sem.ReportSpecimenShift()
+        sem.GoToLowDoseArea(targets[0]["LDArea"])                                               # Apply image shifts in center position LD area (necessary?)
         sem.SetImageShift(ISX0, ISY0)                                                           # reset IS to center position    
 
         z0_ini = np.tan(np.radians(pretilt)) * (np.cos(np.radians(rotation)) * float(tgt["SSY"]) - np.sin(np.radians(rotation)) * float(tgt["SSX"]))
-        correctedFocus = positionFocus - z0_ini * np.cos(np.radians(startTilt)) - float(tgt["SSY"]) * np.sin(np.radians(startTilt))
+        correctedFocus = positionFocus - z0_ini * np.cos(np.radians(startTilt)) - float(tgt["SSY"]) * np.sin(np.radians(startTilt)) + focus_offset_LD[tgt["LDArea"]]  # correctedFocus = focus0 - z0 * cos(startTilt) - SSY * sin(startTilt) + defocus offset for LDArea
 
         position[-1][0]["SSX"] = float(SSX)
         position[-1][0]["SSY"] = float(SSY)
@@ -1668,4 +1776,5 @@ if recoverInput == 1:
 log(datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
 log(f"##### All tilt series completed in {totalTime} min ({perTime} min per tilt series) #####", color=3, style=1)
 sem.SaveLog()
+
 sem.Exit()

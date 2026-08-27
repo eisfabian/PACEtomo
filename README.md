@@ -217,6 +217,7 @@ PACEtomo runs a grouped dose-symmetric tilt scheme. Before starting the PACEtomo
 | `trackDefocus` | `0` | Custom defocus value used only for the tracking tilt series. When set to `0` the same defocus range will be used for all tilt series. |
 | `trackMag` | `0` | Custom magnification used only for the tracking tilt series. This should only be necessary on bad stages. |
 | `trackTwice` | `False` | If `True`, a second tracking image might be taken in case of a large shift. This causes significantly more exposure on the tracking tilt series and should only be necessary on bad stages. |
+| `trackUseTrial` | `False` | If `True`, the Trial Low Dose area is used for the tracking tilt series. This is not recommended unless you need to change the illuminated area for the tracking target. |
 
 #### Geometry settings:
 | Setting | Default | Description |
@@ -284,7 +285,7 @@ PACEtomo runs a grouped dose-symmetric tilt scheme. Before starting the PACEtomo
 | Setting | Default | Description |
 | ------- | ------- | ----------- |
 | `tgtMontage` | `False` | If you want to collect a montage tilt series for each target instead of a single image tilt series, you can set `tgtMontage = True`. The montage uses the shorter camera length to determine the tile displacement. This was implemented for use with a square beam (square C2 aperture). |
-| `tgtMntSize` | `1` |  Size of montage (`1`: 3x3, `2`: 5x5, `3`: 7x7, ...). |
+| `tgtMntSize` | `[1, 1]` |  Size of montage pattern given as list of odd numbers (e.g. `[3, 3]`, `[3, 5]`, `[9, 7]`, ...). Even numbers will be adjusted to accommodate an image on the target center. |
 | `tgtMntOverlap` | `0.05` | Overlap between neighboring montage tiles as fraction of shorter camera dimension. |
 | `tgtMntXOffset` | `0` | Maximum offset [µm] applied along the tilt axis throughout the tilt series to reduce exposure overlap. (+`tgtMntXOffset` is reached at `maxTilt`, -`tgtMntXOffset` at `minTilt`) |
 | `tgtMntFocusCor` | `False` | If `True`, an additional focus offset is applied between the tiles to compensate for the tilt angle dependent z-offset. This might require additional processing considerations when reconstructing the tomogram. |
@@ -351,6 +352,33 @@ A selection of video tutorials was uploaded to Youtube. These were recorded usin
 If you could not resolve the issue yourself or you encountered a bug, please report it to the [GitHub Issues](https://github.com/eisfabian/PACEtomo/issues) page or send an email to [spacetomo.help@gmail.com](mailto:spacetomo.help@gmail.com).
 
 ## Recent changes
+
+### 27.08.2026
+#### v1.9.3
+Support for tilt series collection using different Low Dose areas, non-square target montages, and lots of bug fixes.
+<details>
+<summary>Changes</summary>
+
+#### PACEtomo.py [v1.9.3]
+- Added support for a `LDArea` entry in the targets file to collect a tilt series using the View or Search Low Dose area instead of Record (Low Dose area specific defocus offsets are considered).
+- Added `trackUseTrial` setting to use the Trial Low Dose area for the tracking tilt series (e.g. to allow for a different illuminated area).
+- Added automatic use of `AlignBetweenMags` when the pixel sizes of image and reference differ by more than 10%, with fallback to `AlignTo`.
+- Added support for non-square target montages: `tgtMntSize` now takes a list of odd numbers (e.g. `[3, 5]`) instead of a single integer.
+- Added `_0_0` suffix to the central piece of a montage tilt series.
+- Added collection order and tilt angle to frame names and fixed tilt step counter [#50].
+- Fixed application of tilt axis offset in the realignment routine.
+- Fixed crash when using both `trackExpTime` and `zeroExpTime` [#47].
+- Fixed crash when checking for frames although no frames were saved.
+- Fixed file access crashes when writing to mdoc file (e.g. when using Robocopy or similar).
+- Fixed backwards compatibility with Python 3.6 when using external sortByTilt.
+
+#### PACEtomo_targetsFromMontage.py [v1.9]
+- Added `onlyView` setting to only create View maps and skip creation of Preview maps and targets file.
+
+#### PACEtomo_measureOffset.py [v1.9]
+- Fixed compatibility issue with recent numpy versions [#52].
+</details>
+
 
 ### 18.03.2025
 #### v1.9.2

@@ -292,6 +292,25 @@ PACEtomo runs a grouped dose-symmetric tilt scheme. Before starting the PACEtomo
 | `tgtTrackMnt` | `False` | If `True`, the tracking tilt series will also be treated as a montage. |
 
 
+#### Multi-magnification acquisition (BIGSMALL):
+
+Since v1.9.3, PACEtomo supports multi-magnification cryo-ET, in which high-magnification (HM) and low-magnification (LM) tilt series are acquired interleaved from the same region of interest. This approach, called **BIGSMALL** (Broad Information Gathering Strategy by Multiscale Acquisition of lameLLa), was introduced by [Watson et al. (2026)](https://doi.org/10.64898/2026.04.21.719848) and enables simultaneous collection of large field-of-view, cellular-context tomograms and high-resolution, subtomogram averaging-compatible tilt series with minimal additional electron dose.
+
+The key concept is that each target in a PACEtomo acquisition group can be assigned to a different SerialEM **Low Dose area** (e.g. *Record* for HM targets, *Search* or *View* for LM targets). To assign a Low Dose area, add a `LDArea` entry to the target's block in the targets file (*rootname_tgts.txt*):
+
+    _tgt = 002
+    tsfile = position1_ts_002.mrc
+    viewfile = position1_tgt_002_view.mrc
+    LDArea = V
+    ...
+
+Possible values are `R` (Record), `V` (View) and `S` (Search). Targets without a `LDArea` entry are collected using the Record area as usual.
+
+Some considerations when using this feature:
+- Make sure all used Low Dose areas are configured with the desired magnification and defocus offset settings in SerialEM before running the acquisition. Defocus offsets set for the View and Search areas are automatically considered during focus prediction.
+- The initial target alignment for targets using the View area is done using their View image, while `previewAli` only applies to targets using the Record area. Alignments between images of different magnifications automatically use SerialEM's `AlignBetweenMags`.
+- The `LDArea` entry is not supported by the PACEtomo target selection GUI and has to be added to the targets file manually. Alternatively, the [SPACEtomo](https://github.com/eisfabian/SPACEtomo) target selection GUI lets you assign Low Dose areas to targets directly.
+
 #### Changing settings in targets file
     
 Any numerical or boolean setting in the script can be overwritten by settings in the target file (*rootname_tgts.txt*). This allows for varying settings during batch acquisition of several PACEtomo areas. To overwrite a numerical setting or a boolean setting add a line like ```_set varName = numericalValue``` or ```_bset varName = <1 or 0>```, respectively, at the beginning or end of the targets file.
@@ -360,7 +379,7 @@ Support for tilt series collection using different Low Dose areas, non-square ta
 <summary>Changes</summary>
 
 #### PACEtomo.py [v1.9.3]
-- Added support for a `LDArea` entry in the targets file to collect a tilt series using the View or Search Low Dose area instead of Record (Low Dose area specific defocus offsets are considered).
+- Added support for a `LDArea` entry in the targets file to collect a tilt series using the View or Search Low Dose area instead of Record (see [Multi-magnification acquisition (BIGSMALL)](#multi-magnification-acquisition-bigsmall)).
 - Added `trackUseTrial` setting to use the Trial Low Dose area for the tracking tilt series (e.g. to allow for a different illuminated area).
 - Added automatic use of `AlignBetweenMags` when the pixel sizes of image and reference differ by more than 10%, with fallback to `AlignTo`.
 - Added support for non-square target montages: `tgtMntSize` now takes a list of odd numbers (e.g. `[3, 5]`) instead of a single integer.
